@@ -146,18 +146,41 @@ function parsePriceStringToNumber(targetText) {
 
 /**
  * Intelligently extracts all valid full prices from an element and its subtree/hierarchy.
- * Prevents cents fragmentation (e.g. 118.85 € is not split into 118 and 85).
+ * Prevents cents fragmentation and truncated integer confusion (e.g. 687.64 € is not overridden by 687).
  * Ignores savings, price differences, and discount percentages (e.g. "Save 39.60 €", "-20%").
  */
 function extractPricesFromElement(element, useLowestPrice = true) {
     if (!element) return { value: null, currency: '€' };
 
-    // Amazon specific fix: If .a-price-whole is selected, find the parent .a-price container
     let targetEl = element;
-    if (targetEl.classList && targetEl.classList.contains('a-price-whole')) {
-        const parentPrice = targetEl.closest('.a-price');
-        if (parentPrice) {
-            targetEl = parentPrice;
+
+    // Amazon specific canonical extraction: Check if element is inside or contains .a-price
+    let amazonPriceContainer = null;
+    if (targetEl.closest) {
+        amazonPriceContainer = targetEl.closest('.a-price');
+    }
+    if (!amazonPriceContainer && targetEl.querySelector) {
+        amazonPriceContainer = targetEl.querySelector('.a-price');
+    }
+    if (!amazonPriceContainer && targetEl.classList && targetEl.classList.contains('a-price')) {
+        amazonPriceContainer = targetEl;
+    }
+
+    if (amazonPriceContainer) {
+        const offscreen = amazonPriceContainer.querySelector('.a-offscreen');
+        if (offscreen) {
+            const offscreenText = (offscreen.innerText || offscreen.textContent || '').replace(/\u00a0/g, ' ').trim();
+            const offscreenPrice = parsePriceStringToNumber(offscreenText);
+            if (offscreenPrice !== null && offscreenPrice > 0) {
+                let currency = '€';
+                if (offscreenText.includes('лв') || offscreenText.includes('BGN')) currency = 'лв.';
+                else if (offscreenText.includes('$')) currency = '$';
+                else if (offscreenText.includes('£')) currency = '£';
+                else if (offscreenText.includes('lei') || offscreenText.includes('Lei') || offscreenText.includes('RON')) currency = 'Lei';
+                else if (offscreenText.includes('€') || offscreenText.includes('EUR')) currency = '€';
+
+                return { value: offscreenPrice, currency, candidateCount: 1 };
+            }
         }
     }
 
@@ -224,25 +247,35 @@ function extractPricesFromElement(element, useLowestPrice = true) {
         return { value: null, currency };
     }
 
-    // Filter out isolated segmented decimals/cents (e.g. if numbers contain [118.85, 85, 118], 85 is decimal fragment)
+    // Filter out partial fragments (both truncated integers and isolated decimal fractions)
+    // e.g. If candidates contain [687.64, 687, 64], 64 is decimal cents and 687 is truncated whole part of 687.64
     const validPrices = candidateNumbers.filter(num => {
         if (num < 1 && candidateNumbers.some(other => other >= 1)) return false;
-        // If a candidate is an isolated fraction/integer of an already present float price
-        const isSegmentedCent = candidateNumbers.some(full => {
-            if (full > 10 && num <= 99 && num >= 1 && Number.isInteger(num)) {
-                const cents = Math.round((full - Math.floor(full)) * 100);
-                if (cents === num) return true;
+
+        // Check if num is an incomplete fragment of any full float price in candidateNumbers
+        for (const full of candidateNumbers) {
+            if (full > num && (full % 1 !== 0)) {
+                // 1. Is num the integer/whole part of full? (e.g. 687 of 687.64)
+                if (Math.floor(full) === num) {
+                    return false;
+                }
+                // 2. Is num the cents/fraction part of full? (e.g. 64 of 687.64)
+                if (num <= 99 && num >= 1 && Number.isInteger(num)) {
+                    const cents = Math.round((full - Math.floor(full)) * 100);
+                    if (cents === num) {
+                        return false;
+                    }
+                }
             }
-            return false;
-        });
-        return !isSegmentedCent;
+        }
+        return true;
     });
 
     const pricesToEvaluate = validPrices.length > 0 ? validPrices : candidateNumbers;
 
     let finalValue = pricesToEvaluate[0];
     if (useLowestPrice) {
-        // Select lowest price among valid candidates (e.g. promotional price)
+        // Select lowest price among valid full prices (e.g. promotional price)
         finalValue = Math.min(...pricesToEvaluate);
     }
 

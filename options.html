@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title data-i18n="options_page_title">Settings | Price Tracker Pro</title>
+    <style>
+        :root, html.theme-light {
+            --bg-main: #f4f7f6;
+            --bg-container: #fff;
+            --text-main: #333;
+            --text-muted: #666;
+            --text-strong: #000;
+            --link-color: #007bff;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --success-bg: #f0fff4;
+            --border-color: #ccc;
+            --header-bg: #f8f9fa;
+            --row-border: #eee;
+            --modal-bg: #fefefe;
+            --btn-bg: #007bff;
+            --btn-text: #ffffff;
+            --btn-success-bg: #28a745;
+            --btn-success-text: #ffffff;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            html:not(.theme-light) {
+                --bg-main: #131314;
+                --bg-container: #1e1f20;
+                --text-main: #e3e3e3;
+                --text-muted: #c4c7c5;
+                --text-strong: #ffffff;
+                --link-color: #a8c7fa;
+                --success-color: #81c995;
+                --danger-color: #f28b82;
+                --success-bg: #0f5223;
+                --border-color: #444746;
+                --header-bg: #282a2c;
+                --row-border: #444746;
+                --modal-bg: #1e1f20;
+                --btn-bg: #a8c7fa;
+                --btn-text: #041e49;
+                --btn-success-bg: #81c995;
+                --btn-success-text: #003314;
+            }
+        }
+
+        html.theme-dark {
+            --bg-main: #131314;
+            --bg-container: #1e1f20;
+            --text-main: #e3e3e3;
+            --text-muted: #c4c7c5;
+            --text-strong: #ffffff;
+            --link-color: #a8c7fa;
+            --success-color: #81c995;
+            --danger-color: #f28b82;
+            --success-bg: #0f5223;
+            --border-color: #444746;
+            --header-bg: #282a2c;
+            --row-border: #444746;
+            --modal-bg: #1e1f20;
+            --btn-bg: #a8c7fa;
+            --btn-text: #041e49;
+            --btn-success-bg: #81c995;
+            --btn-success-text: #003314;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-main); color: var(--text-main); margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background: var(--bg-container); padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { border-bottom: 2px solid var(--link-color); padding-bottom: 10px; color: var(--link-color); }
+        
+        /* Tabs */
+        .tabs { display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 20px; }
+        .tab { padding: 10px 20px; cursor: pointer; background: var(--header-bg); border: 1px solid var(--border-color); border-bottom: none; margin-right: 5px; border-radius: 5px 5px 0 0; }
+        .tab.active { background: var(--bg-container); font-weight: bold; border-top: 2px solid var(--link-color); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Forms */
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input[type="text"], input[type="number"], select { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid var(--border-color); border-radius: 4px; }
+        .checkbox-group { display: flex; align-items: center; gap: 10px; }
+        .checkbox-group input { width: auto; }
+        
+        button { background-color: var(--btn-bg); color: var(--btn-text); border: none; padding: 10px 15px; cursor: pointer; border-radius: 4px; font-size: 14px; }
+        button:hover { background-color: #0056b3; }
+        button.danger { background-color: var(--danger-color); }
+        button.danger:hover { background-color: #c82333; }
+        button.success { background-color: var(--success-color); }
+        button.success:hover { background-color: #218838; }
+
+        /* Products List */
+        .category-block { border: 1px solid var(--border-color); margin-bottom: 20px; border-radius: 5px; overflow: hidden; }
+        .category-header { background: var(--header-bg); padding: 10px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); }
+        .item-row { padding: 10px; border-bottom: 1px dashed var(--row-border); display: flex; justify-content: space-between; align-items: center; }
+        .item-row:last-child { border-bottom: none; }
+        .item-details { flex-grow: 1; }
+        .item-actions button { padding: 5px 10px; font-size: 12px; margin-left: 5px; }
+
+        /* Export / Import */
+        .export-item { margin-bottom: 5px; }
+
+        /* Modal */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: var(--modal-bg); margin: 5% auto; padding: 20px; border: 1px solid var(--border-color); width: 90%; max-width: 1000px; border-radius: 8px; position: relative; }
+        .close-btn { color: var(--text-muted); float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close-btn:hover, .close-btn:focus { color: black; text-decoration: none; cursor: pointer; }
+        .chart-container { position: relative; height: 60vh; width: 100%; }
+    </style>
+    <script src="chart.umd.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <h1 data-i18n="options_main_title">Price & Text Tracker Pro - Dashboard</h1>
+
+    <div class="tabs">
+        <div class="tab active" data-target="tab-products" data-i18n="tab_products">Products & Categories</div>
+        <div class="tab" data-target="tab-settings" data-i18n="tab_settings">Settings & Data (Export)</div>
+    </div>
+
+    <!-- TAB: PRODUCTS -->
+    <div id="tab-products" class="tab-content active">
+        <div style="background: var(--bg-container); border: 1px solid var(--border-color); padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+            <h3 data-i18n="add_new_site">Add new tracking site</h3>
+            <form id="addItemForm">
+                <div class="form-group">
+                    <label for="catSelect" data-i18n="category_label">Category (Product Name)</label>
+                    <select id="catSelect" required style="margin-bottom: 5px;">
+                        <option value="" data-i18n="choose_existing">-- Choose existing category --</option>
+                        <option value="__NEW__" data-i18n="create_new_cat">➕ Create new category...</option>
+                    </select>
+                    <input type="text" id="catName" placeholder="Enter name for new category..." data-i18n-placeholder="cat_name_placeholder" style="display: none;">
+                </div>
+                <div class="form-group">
+                    <label data-i18n="url_label">Page URL</label>
+                    <input type="text" id="itemUrl" required placeholder="https://example.com/product/...">
+                </div>
+                <div class="form-group">
+                    <label for="itemSelector" data-i18n="selector_label">CSS Selector (price or text element):</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="itemSelector" placeholder="e.g. .price-tag or #main-price" data-i18n-placeholder="selector_placeholder" required style="flex-grow:1;">
+                        <button type="button" id="startPickerBtn" style="background-color: #ffc107; color: black; flex-shrink:0;" data-i18n="pick_from_page">🖱️ Pick from page</button>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label data-i18n="type_label">Type</label>
+                        <select id="itemType">
+                            <option value="price" data-i18n="type_price">Price (track drops)</option>
+                            <option value="text" data-i18n="type_text">Text (track changes)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label data-i18n="interval_label">Interval (minutes)</label>
+                        <input type="number" id="itemInterval" min="1" value="60" required>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label data-i18n="jitter_label">Jitter (minutes)</label>
+                        <input type="number" id="itemJitter" min="0" value="5" required title="Random interval deviation to simulate human behavior" data-i18n-title="jitter_title">
+                    </div>
+                </div>
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="itemMacro" checked>
+                    <label for="itemMacro" data-i18n="macro_label">Use Macro (Scroll & Wait - required for Amazon/eMAG)</label>
+                </div>
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="itemUseLowestPrice" checked>
+                    <label for="itemUseLowestPrice" data-i18n="use_lowest_price_label">Extract lowest price when multiple found in hierarchy (for promotions)</label>
+                </div>
+                <button type="submit" data-i18n="add_to_list">Add to list</button>
+            </form>
+        </div>
+
+        <h3 data-i18n="tracked_items">Tracked Items</h3>
+        <button id="optionsRefreshBtn" class="success" data-i18n="refresh_all_now">🔄 Refresh all now</button>
+        <div id="trackedItemsList">
+            <p data-i18n="loading">Loading...</p>
+        </div>
+    </div>
+
+    <!-- TAB: SETTINGS, EXPORT & IMPORT -->
+    <div id="tab-settings" class="tab-content">
+        <h3 data-i18n="global_settings">Global Settings</h3>
+        <div class="form-group checkbox-group">
+            <input type="checkbox" id="settingNotif" checked>
+            <label for="settingNotif" data-i18n="enable_notif">Enable Push notifications</label>
+        </div>
+        <div class="form-group checkbox-group">
+            <input type="checkbox" id="settingSound" checked>
+            <label for="settingSound" data-i18n="enable_sound">Enable Sound notifications</label>
+        </div>
+        
+        <div class="form-group">
+            <label for="settingLanguage" data-i18n="language_label">Language</label>
+            <select id="settingLanguage">
+                <option value="en">English</option>
+                <option value="bg">Български</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="settingTheme" data-i18n="theme_label">Theme (Dark/Light Mode)</label>
+            <select id="settingTheme">
+                <option value="auto" data-i18n="theme_auto">Auto (OS default)</option>
+                <option value="light" data-i18n="theme_light">Light theme</option>
+                <option value="dark" data-i18n="theme_dark">Dark theme</option>
+            </select>
+        </div>
+
+        <button id="saveSettingsBtn" class="success" data-i18n="save_settings">Save Settings</button>
+
+        <hr style="margin: 30px 0;">
+
+        <h3 data-i18n="data_management">Data Management (Import / Export)</h3>
+        <p style="color: #666; font-size: 13px;" data-i18n="data_desc">Product data is saved separately from settings so you can easily export or share items.</p>
+        
+        <div style="display: flex; gap: 20px;">
+            <!-- EXPORT -->
+            <div style="flex: 1; background: var(--bg-container); border: 1px solid var(--border-color); padding: 15px; border-radius: 5px;">
+                <h4 data-i18n="export_data">Export Data</h4>
+                <p style="font-size: 13px;" data-i18n="export_desc">Select categories to export / backup:</p>
+                <div id="exportCategoryList" style="margin-bottom: 15px; max-height: 150px; overflow-y: auto; background: var(--bg-container); padding: 10px; border: 1px solid var(--border-color);">
+                </div>
+                <button id="exportBtn" data-i18n="export_btn">Export Selected (JSON)</button>
+            </div>
+
+            <!-- IMPORT -->
+            <div style="flex: 1; background: var(--bg-container); border: 1px solid var(--border-color); padding: 15px; border-radius: 5px;">
+                <h4 data-i18n="import_data">Import Data</h4>
+                <p style="font-size: 13px;" data-i18n="import_desc">Add previously exported items to your current list.</p>
+                <input type="file" id="importFile" accept=".json" style="margin-bottom: 15px;">
+                <button id="importBtn" class="danger" data-i18n="import_btn">Import</button>
+            </div>
+        </div>
+
+        <hr style="margin: 30px 0;">
+
+        <h3 data-i18n="google_drive_sync">☁️ Google Drive Synchronization</h3>
+        <p style="color: #666; font-size: 13px;" data-i18n="drive_desc">Save your entire settings and item list to a secure, hidden application folder in Google Drive.</p>
+        
+        <div style="background: var(--bg-container); border: 1px solid var(--border-color); padding: 15px; border-radius: 5px;">
+            <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 15px;">
+                <button id="driveBackupBtn" style="background-color: #4285F4;" data-i18n="drive_backup">⬆️ Backup to Google Drive</button>
+                <button id="driveRestoreBtn" style="background-color: #0F9D58;" data-i18n="drive_restore">⬇️ Restore from Google Drive</button>
+                <span id="driveStatusText" style="font-size: 13px; font-weight: bold; margin-left: 10px;"></span>
+            </div>
+        </div>
+
+        <hr style="margin: 30px 0;">
+
+        <h3 data-i18n="duplicate_scanner_title">🔍 Duplicate & Overlapping Sites Scanner</h3>
+        <p style="color: var(--text-muted); font-size: 13px;" data-i18n="duplicate_scanner_desc">Scan all categories for duplicate URLs, identical selectors, or overlapping price tracking targets.</p>
+        
+        <div style="background: var(--bg-container); border: 1px solid var(--border-color); padding: 15px; border-radius: 5px;">
+            <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 10px; flex-wrap: wrap;">
+                <button id="scanDuplicatesBtn" class="primary" data-i18n="scan_duplicates_btn">🔍 Scan for Duplicates Now</button>
+                <button id="autoCleanDuplicatesBtn" class="danger" style="display: none;" data-i18n="auto_clean_duplicates_btn">🧹 Automatically Clean Exact Duplicates</button>
+            </div>
+            <div id="duplicateScanResults" style="margin-top: 15px; display: none;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- History chart modal -->
+<div id="historyModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" id="closeModalBtn">&times;</span>
+        <h2 id="modalTitle" data-i18n="price_history_modal">Price History</h2>
+        <div class="chart-container">
+            <canvas id="priceChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Edit item modal -->
+<div id="editItemModal" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+        <span class="close-btn" id="closeEditModalBtn">&times;</span>
+        <h3 data-i18n="edit_site_title">Edit Tracked Site</h3>
+        <div class="form-group" style="margin-top: 15px;">
+            <label data-i18n="url_label">Page URL:</label>
+            <input type="text" id="editItemUrl" style="width: 100%; box-sizing: border-box; padding: 8px; margin-top: 5px; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color);">
+        </div>
+        <div class="form-group" style="margin-top: 10px;">
+            <label data-i18n="selector_label">CSS Selector (price or text element):</label>
+            <div style="display: flex; gap: 10px; margin-top: 5px;">
+                <input type="text" id="editItemSelector" placeholder="e.g. .price-tag or #main-price" data-i18n-placeholder="selector_placeholder" required style="flex-grow:1; padding: 8px; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); box-sizing: border-box;">
+                <button type="button" id="editStartPickerBtn" style="background-color: #ffc107; color: black; flex-shrink:0;" data-i18n="pick_from_page">🖱️ Pick from page</button>
+            </div>
+        </div>
+        <div class="form-group" style="margin-top: 10px;">
+            <label data-i18n="type_label">Type:</label>
+            <select id="editItemType" style="width: 100%; box-sizing: border-box; padding: 8px; margin-top: 5px; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color);">
+                <option value="price" data-i18n="type_price">Price (track drops)</option>
+                <option value="text" data-i18n="type_text">Text (track changes)</option>
+            </select>
+        </div>
+        <div style="display: flex; gap: 15px; margin-top: 10px;">
+            <div class="form-group" style="flex: 1;">
+                <label data-i18n="interval_label">Interval (minutes):</label>
+                <input type="number" id="editItemInterval" min="1" style="width: 100%; box-sizing: border-box; padding: 8px; margin-top: 5px; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color);">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label data-i18n="jitter_label">Jitter (minutes):</label>
+                <input type="number" id="editItemJitter" min="0" style="width: 100%; box-sizing: border-box; padding: 8px; margin-top: 5px; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color);">
+            </div>
+        </div>
+        <div class="form-group" style="margin-top: 10px;">
+            <label style="display:flex; align-items:center; gap: 8px;">
+                <input type="checkbox" id="editItemMacro"> <span data-i18n="macro_label">Use Macro (Scroll & Wait - required for Amazon/eMAG)</span>
+            </label>
+        </div>
+        <div class="form-group" style="margin-top: 5px;">
+            <label style="display:flex; align-items:center; gap: 8px;">
+                <input type="checkbox" id="editItemUseLowestPrice"> <span data-i18n="use_lowest_price_label">Extract lowest price when multiple found in hierarchy (for promotions)</span>
+            </label>
+        </div>
+        <input type="hidden" id="editItemCatKey">
+        <input type="hidden" id="editItemId">
+        <div style="margin-top: 20px; text-align: right;">
+            <button class="success" id="saveEditItemBtn" data-i18n="save_changes_btn">💾 Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="options.js" charset="utf-8"></script>
+</body>
+</html>

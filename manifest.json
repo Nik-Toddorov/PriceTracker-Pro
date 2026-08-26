@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Price & Text Tracker Pro",
+  "version": "1.0",
+  "description": "Extension for tracking prices and text with history charts, human simulation macros, and audio alerts.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Open Price Tracker"
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications",
+    "tabs",
+    "scripting",
+    "offscreen",
+    "downloads",
+    "contextMenus",
+    "identity"
+  ],
+  "oauth2": {
+    "client_id": "365430078250-l1j5di7uj2meloiqu5upte04moii95sp.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/drive.appdata"
+    ]
+  },
+  "host_permissions": [
+    "<all_urls>"
+  ]
+}

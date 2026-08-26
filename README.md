@@ -1,0 +1,48 @@
+# PriceTracker Pro
+
+PriceTracker Pro is a powerful browser extension (for Google Chrome, Microsoft Edge, and Chromium-based browsers) that automatically monitors price and text changes across your favorite e-commerce websites. The extension operates seamlessly in the background and includes visual element picker tools, smart promotion/lowest-price extraction, human behavior simulation macros, duplicate scanners, Google Drive cloud backup, and dark mode.
+
+## 🚀 Installation
+
+1. Open your browser and navigate to `chrome://extensions/` (or `edge://extensions/`).
+2. Enable **Developer mode** using the toggle in the top-right corner.
+3. Click **Load unpacked** and select the repository root folder.
+
+## ✨ Features
+
+- **Automated Background Tracking**: Periodically checks prices at custom intervals (e.g. every 60 minutes) with randomized jitter to prevent bot detection.
+- **Smart Promotional Price Extraction**: Automatically extracts the lowest active promotional price when containers include both old/strikethrough and discounted prices.
+- **Visual Element Picker**: Live, interactive on-page element selector with DOM tree inspection (3 levels up, 2 levels down) and CSS selector generation.
+- **Anti-Bot & Human Behavior Simulation**: Randomized Bezier mouse movements and scrolling macros for protected e-commerce sites (Amazon, eMAG).
+- **Duplicate & Overlap Scanner**: Intelligent URL normalization (stripping tracking query params and hashes) to detect and manage duplicate trackers or overlapping selectors.
+- **Interactive Price History Charts**: Visual price trend graphs powered by Chart.js for individual items and categories.
+- **Google Drive Cloud Sync**: Secure backup and restore for all tracked items and preferences via the Google Drive AppData folder.
+- **Audio & Push Notifications**: Instant desktop and sound alerts when a price drop or text update is detected.
+- **Dark Mode & Multilingual**: Supports dark/light themes (Google Material 3 palette) and multiple languages (English and Bulgarian).
+
+## 📝 Changelog
+
+- **License**: The project is licensed under the open-source **GNU General Public License v3.0 (GPLv3)**. Added official `LICENSE` file.
+- **Feature / UX**: Automatically closes the settings window (`options.html`) immediately after successfully adding a new site to the tracking list.
+- **Feature / Duplicate Scanner UI**: Added a dedicated section and manual scan button in Settings (`options.html`) to scan the database for duplicate URLs, identical selectors, or overlapping targets, with single deletion and one-click auto-cleaning.
+- **Feature / Duplicate & Overlap Detection**: Added intelligent duplicate prevention on Add and Edit with URL normalization (stripping `utm_*`, `fbclid`, `gclid`, `ref`, and hash anchors). Exact duplicates are blocked with category info; overlapping selectors prompt user confirmation.
+- **Fix / Price Segmentation & Difference Filtering**: Resolved issues where segmented cents (e.g. `118<sup>,85</sup> €`) were fragmented, and filtered out inline savings/differences (e.g. "Save 39.60 €", "Discount -20%").
+- **Feature / Smart Price Extraction**: Added optional and automated extraction of the lowest price within an element's hierarchy (`useLowestPrice`) to handle promotional discounts.
+- **Feature / UX**: Added **Pick from page** button in the Edit item modal (`editItemModal`) for seamless selector and URL updates on existing trackers.
+- **Fix / Background Scraping**: Replaced `requestAnimationFrame` with `setTimeout` in mouse simulations and added MutationObserver + polling in `waitForElement` to ensure background tabs never stall when throttled by Chrome.
+- **Fix / i18n**: Fully localized error tooltips to display strictly in the user's active language without language mixing.
+- **Optimization / Performance**: Throttled picker DOM tree updates with RAF and element change checks for smooth 60 FPS performance on complex pages.
+- **Optimization / Architecture**: Unified and consolidated message listeners in `background.js` and `content.js` into central dispatchers.
+- **Optimization / Reliability**: Added cleanup for tab listeners (`chrome.tabs.onUpdated`) and safety timeouts in `background.js` upon scrape completion or tab closure.
+- **Security / XSS**: Implemented `escapeHtml` sanitization in `options.js` and `popup.js` for dynamic strings and category names.
+- **Feature / Persistence & Startup**: Added persistent timestamps (`lastChecked`, `lastSuccessfulCheck`), overdue checks on startup (`onStartup`), and staggered background scraping.
+- **Feature / Google Drive Sync**: Full backup and restore support via Google Drive AppData API.
+
+## 📌 TODO
+
+- [ ] Add filtering and search functionality to the tracked items list.
+- [ ] Add CSV / Excel price history export options.
+
+## 📄 License
+
+This project is licensed under the terms of the **GNU General Public License v3.0 (GPLv3)**. For more details, see the [LICENSE](LICENSE) file.

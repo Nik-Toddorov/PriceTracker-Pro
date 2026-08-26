@@ -22,6 +22,8 @@ PriceTracker Pro is a powerful browser extension (for Google Chrome, Microsoft E
 
 ## 📝 Changelog
 
+- **Fix / Resilient Selector Generator & Progressive Element Lookup**: Overhauled `getCssSelector` and `generateUniqueSelector` in `picker.js` and `content.js` to avoid brittle 10-level `nth-of-type` chains. Added intelligent progressive fallback lookups in `content.js` that automatically relax selectors, strip broken hierarchy indices, scroll to trigger lazy hydration, and match common eCommerce price patterns (e.g. `p.product-new-price`, `.pricing-block`, `[itemprop="price"]`, `.a-price`).
+- **Feature / Anti-Bot Traffic Staggering**: Implemented a persistent, alarm-backed Sequential Scrape Queue in `background.js` that automatically spaces/staggers checks between different sites and categories by **2 to 10 minutes** (randomized). This eliminates traffic bursts and prevents e-commerce bot/WAF protections (eMAG, Amazon, Ozone, Cloudflare) from triggering during scheduled runs, startup checks, or mass refreshes.
 - **License**: The project is licensed under the open-source **GNU General Public License v3.0 (GPLv3)**. Added official `LICENSE` file.
 - **Feature / UX**: Automatically closes the settings window (`options.html`) immediately after successfully adding a new site to the tracking list.
 - **Feature / Duplicate Scanner UI**: Added a dedicated section and manual scan button in Settings (`options.html`) to scan the database for duplicate URLs, identical selectors, or overlapping targets, with single deletion and one-click auto-cleaning.

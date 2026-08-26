@@ -208,24 +208,92 @@ if (!window.priceTrackerPickerInjected) {
     }
 
     function getCssSelector(el) {
-        if (!(el instanceof Element)) return;
-        let path = [];
-        while (el.nodeType === Node.ELEMENT_NODE) {
-            let selector = el.nodeName.toLowerCase();
-            if (el.id) {
-                selector += '#' + el.id;
-                path.unshift(selector);
-                break;
-            } else {
-                let sib = el, nth = 1;
-                while (sib = sib.previousElementSibling) {
-                    if (sib.nodeName.toLowerCase() == selector) nth++;
+        if (!(el instanceof Element)) return "";
+        
+        // 1. If element has a valid unique ID
+        if (el.id && !/^\d+$/.test(el.id) && !el.id.includes('ember') && !el.id.includes('react-')) {
+            try {
+                if (document.querySelectorAll('#' + CSS.escape(el.id)).length === 1) {
+                    return '#' + CSS.escape(el.id);
                 }
-                if (nth != 1) selector += ":nth-of-type("+nth+")";
-            }
-            path.unshift(selector);
-            el = el.parentNode;
+            } catch (e) {}
         }
+
+        // 2. Check if element has unique meaningful classes
+        if (el.className && typeof el.className === 'string') {
+            const classes = el.className.split(/\s+/).filter(c => 
+                c && 
+                !/^(active|hover|focus|selected|open|closed|show|hide|visible|ng-|css-|styled-)/i.test(c) &&
+                !/^\d+$/.test(c)
+            );
+            
+            if (classes.length > 0) {
+                const tag = el.nodeName.toLowerCase();
+                const classSel = '.' + classes.map(c => CSS.escape(c)).join('.');
+                try {
+                    if (document.querySelectorAll(classSel).length === 1) {
+                        return classSel;
+                    }
+                    if (document.querySelectorAll(tag + classSel).length === 1) {
+                        return tag + classSel;
+                    }
+                } catch (e) {}
+            }
+        }
+
+        // 3. Try standard semantic/eCommerce attributes
+        for (const attr of ['itemprop', 'data-testid', 'data-qa', 'data-cy', 'data-test']) {
+            const val = el.getAttribute(attr);
+            if (val) {
+                const attrSel = `[${attr}="${CSS.escape(val)}"]`;
+                try {
+                    if (document.querySelectorAll(attrSel).length === 1) {
+                        return attrSel;
+                    }
+                } catch (e) {}
+            }
+        }
+
+        // 4. Concise hierarchical path (max 3 levels)
+        const path = [];
+        let curr = el;
+        let depth = 0;
+
+        while (curr && curr.nodeType === Node.ELEMENT_NODE && depth < 3) {
+            let seg = curr.nodeName.toLowerCase();
+
+            if (curr.id && !/^\d+$/.test(curr.id) && !curr.id.includes('ember')) {
+                try {
+                    seg += '#' + CSS.escape(curr.id);
+                    path.unshift(seg);
+                    break;
+                } catch(e) {}
+            }
+
+            if (curr.className && typeof curr.className === 'string') {
+                const validClasses = curr.className.split(/\s+/).filter(c => 
+                    c && !/^(active|hover|focus|selected|open|show|hide|ng-|css-)/i.test(c) && !/^\d+$/.test(c)
+                );
+                if (validClasses.length > 0) {
+                    seg += '.' + CSS.escape(validClasses[0]);
+                }
+            }
+
+            if (!seg.includes('.') && !seg.includes('#')) {
+                let sib = curr, nth = 1;
+                while (sib = sib.previousElementSibling) {
+                    if (sib.nodeName === curr.nodeName) nth++;
+                }
+                if (nth > 1) {
+                    seg += `:nth-of-type(${nth})`;
+                }
+            }
+
+            path.unshift(seg);
+            depth++;
+            curr = curr.parentElement;
+        }
+
         return path.join(" > ");
     }
 

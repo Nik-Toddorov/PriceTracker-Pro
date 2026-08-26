@@ -4,7 +4,19 @@ import { initLang, t } from "./i18n.js";
 let isCheckingOverdue = false;
 let isSettingUpContextMenus = false;
 let activePickerTabId = null;
-const activeScrapes = new Map(); // tabId -> { itemId, targetItem, completed }
+const activeScrapes = new Map(); // tabId -> { itemId, targetItem, completed, cleanup, resolve }
+
+// Queue state variables
+let isProcessingQueue = false;
+let currentActiveScrapeItemId = null;
+const QUEUE_ALARM_NAME = 'scrape_queue_dispatcher';
+
+// Helper function to generate a randomized delay between 2 and 10 minutes in milliseconds
+function getRandomStaggerDelayMs() {
+  const minMs = 2 * 60 * 1000;  // 2 minutes
+  const maxMs = 10 * 60 * 1000; // 10 minutes
+  return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+}
 
 // Helper function to find an item and its category key
 function findItemAndCategory(trackingData, itemId) {
@@ -38,6 +50,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
       scrapeContext.completed = true;
       await processScrapeError(scrapeContext.targetItem, "Tab closed before check completed");
     }
+    if (scrapeContext.resolve) scrapeContext.resolve();
   }
 });
 
@@ -45,123 +58,226 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   await initLang();
 
-  if (alarm.name.startsWith('check_item_')) {
+  if (alarm.name === QUEUE_ALARM_NAME) {
+    await runNextItemFromQueue();
+  } else if (alarm.name.startsWith('check_item_')) {
     const itemId = alarm.name.split('check_item_')[1];
-    await executeScrape(itemId);
+    await enqueueScrapeItems(itemId, { forceImmediate: false });
   }
 });
 
-// 2. SCRAPE EXECUTION (Open background tab and inject content script)
-async function executeScrape(itemId) {
-  const data = await chrome.storage.local.get('trackingData');
-  const trackingData = data.trackingData || {};
-  
-  // Find product across all categories
-  const { item: targetItem } = findItemAndCategory(trackingData, itemId);
+// 2. SCRAPE QUEUE MANAGEMENT (Staggers checks between sites by 2 to 10 minutes)
+async function enqueueScrapeItems(itemIds, options = { forceImmediate: false }) {
+  if (!Array.isArray(itemIds)) itemIds = [itemIds];
+  if (itemIds.length === 0) return;
 
-  if (!targetItem) {
-    console.warn(`Item with ID ${itemId} was not found.`);
+  const data = await chrome.storage.local.get(['scrapeQueue']);
+  let queue = data.scrapeQueue || [];
+
+  for (const id of itemIds) {
+    if (!queue.includes(id) && id !== currentActiveScrapeItemId) {
+      if (options.forceImmediate) {
+        queue.unshift(id);
+      } else {
+        queue.push(id);
+      }
+    }
+  }
+
+  await chrome.storage.local.set({ scrapeQueue: queue });
+  await dispatchQueue(options.forceImmediate);
+}
+
+async function dispatchQueue(forceImmediate = false) {
+  if (isProcessingQueue || currentActiveScrapeItemId) {
     return;
   }
 
-  // Open inactive background tab so it doesn't interrupt the user
-  let tab;
+  const data = await chrome.storage.local.get(['scrapeQueue', 'lastScrapeTimestamp']);
+  const queue = data.scrapeQueue || [];
+  if (queue.length === 0) {
+    chrome.alarms.clear(QUEUE_ALARM_NAME);
+    return;
+  }
+
+  const lastTime = data.lastScrapeTimestamp || 0;
+  const now = Date.now();
+  const elapsed = now - lastTime;
+
+  if (forceImmediate || lastTime === 0) {
+    await runNextItemFromQueue();
+  } else {
+    const nextStaggerMs = getRandomStaggerDelayMs();
+    if (elapsed >= nextStaggerMs) {
+      await runNextItemFromQueue();
+    } else {
+      const remainingMinutes = (nextStaggerMs - elapsed) / (60 * 1000);
+      console.log(`[Queue] Next site check scheduled in ~${remainingMinutes.toFixed(1)} min (staggered 2-10 min).`);
+      chrome.alarms.create(QUEUE_ALARM_NAME, { delayInMinutes: Math.max(0.1, remainingMinutes) });
+    }
+  }
+}
+
+async function runNextItemFromQueue() {
+  if (isProcessingQueue || currentActiveScrapeItemId) return;
+  isProcessingQueue = true;
+
   try {
-    tab = await chrome.tabs.create({ url: targetItem.url, active: false });
-  } catch (e) {
-    console.error(`Failed to open background tab for ${itemId}:`, e);
-    await processScrapeError(targetItem, "Failed to open background tab");
-    return;
+    const data = await chrome.storage.local.get(['scrapeQueue']);
+    let queue = data.scrapeQueue || [];
+    if (queue.length === 0) {
+      isProcessingQueue = false;
+      return;
+    }
+
+    const nextItemId = queue.shift();
+    await chrome.storage.local.set({ scrapeQueue: queue });
+
+    currentActiveScrapeItemId = nextItemId;
+    await executeScrape(nextItemId);
+  } catch (err) {
+    console.error("Queue item execution error:", err);
+  } finally {
+    currentActiveScrapeItemId = null;
+    isProcessingQueue = false;
+    const now = Date.now();
+    await chrome.storage.local.set({ lastScrapeTimestamp: now });
+
+    // Schedule next in queue after 2-10 minutes
+    const data = await chrome.storage.local.get(['scrapeQueue']);
+    if (data.scrapeQueue && data.scrapeQueue.length > 0) {
+      const nextStaggerMs = getRandomStaggerDelayMs();
+      const delayMinutes = nextStaggerMs / (60 * 1000);
+      console.log(`[Queue] Staggering next queued site check by ${delayMinutes.toFixed(1)} minutes.`);
+      chrome.alarms.create(QUEUE_ALARM_NAME, { delayInMinutes: delayMinutes });
+    }
   }
+}
 
-  let executed = false;
-  let fallbackTimeoutId = null;
-  let safetyTimeoutId = null;
+// 3. SCRAPE EXECUTION (Opens background tab and injects content script)
+function executeScrape(itemId) {
+  return new Promise(async (resolve) => {
+    let isResolved = false;
+    const safeResolve = () => {
+      if (!isResolved) {
+        isResolved = true;
+        resolve();
+      }
+    };
 
-  const cleanupListeners = () => {
-    chrome.tabs.onUpdated.removeListener(listener);
-    if (fallbackTimeoutId) clearTimeout(fallbackTimeoutId);
-    if (safetyTimeoutId) clearTimeout(safetyTimeoutId);
-  };
+    const data = await chrome.storage.local.get('trackingData');
+    const trackingData = data.trackingData || {};
+    
+    // Find product across all categories
+    const { item: targetItem } = findItemAndCategory(trackingData, itemId);
 
-  const scrapeContext = { 
-    itemId: targetItem.id, 
-    targetItem, 
-    completed: false,
-    cleanup: cleanupListeners
-  };
-  activeScrapes.set(tab.id, scrapeContext);
-  
-  const injectAndStart = async () => {
-    if (executed) return;
-    executed = true;
-    cleanupListeners();
+    if (!targetItem) {
+      console.warn(`Item with ID ${itemId} was not found.`);
+      return safeResolve();
+    }
+
+    // Open inactive background tab so it doesn't interrupt the user
+    let tab;
     try {
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ['content.js']
-      });
-      await chrome.tabs.sendMessage(tab.id, {
-        action: "start_scrape",
-        itemConfig: targetItem
-      });
-    } catch (err) {
-      console.warn(`Failed to inject content script or send message to tab ${tab.id}:`, err?.message || err);
+      tab = await chrome.tabs.create({ url: targetItem.url, active: false });
+    } catch (e) {
+      console.error(`Failed to open background tab for ${itemId}:`, e);
+      await processScrapeError(targetItem, "Failed to open background tab");
+      return safeResolve();
+    }
+
+    let executed = false;
+    let fallbackTimeoutId = null;
+    let safetyTimeoutId = null;
+
+    const cleanupListeners = () => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      if (fallbackTimeoutId) clearTimeout(fallbackTimeoutId);
+      if (safetyTimeoutId) clearTimeout(safetyTimeoutId);
+    };
+
+    const scrapeContext = { 
+      itemId: targetItem.id, 
+      targetItem, 
+      completed: false,
+      cleanup: cleanupListeners,
+      resolve: safeResolve
+    };
+    activeScrapes.set(tab.id, scrapeContext);
+    
+    const injectAndStart = async () => {
+      if (executed) return;
+      executed = true;
+      cleanupListeners();
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['content.js']
+        });
+        await chrome.tabs.sendMessage(tab.id, {
+          action: "start_scrape",
+          itemConfig: targetItem
+        });
+      } catch (err) {
+        console.warn(`Failed to inject content script or send message to tab ${tab.id}:`, err?.message || err);
+        if (!scrapeContext.completed) {
+          scrapeContext.completed = true;
+          activeScrapes.delete(tab.id);
+          await processScrapeError(targetItem, err?.message || "Failed to inject content script");
+        }
+        await safeRemoveTab(tab.id);
+        safeResolve();
+      }
+    };
+
+    const listener = (tabId, info) => {
+      if (tabId === tab.id && info.status === 'complete') {
+        injectAndStart();
+      }
+    };
+
+    chrome.tabs.onUpdated.addListener(listener);
+
+    // If tab is already completed/cached
+    if (tab.status === 'complete') {
+      injectAndStart();
+    }
+
+    // Fallback injection if page loading takes too long due to heavy resources/trackers
+    fallbackTimeoutId = setTimeout(() => {
+      injectAndStart();
+    }, 6000);
+
+    // Safety timeout to close tab and log error if unresponsive
+    safetyTimeoutId = setTimeout(async () => {
       if (!scrapeContext.completed) {
         scrapeContext.completed = true;
         activeScrapes.delete(tab.id);
-        await processScrapeError(targetItem, err?.message || "Failed to inject content script");
+        await processScrapeError(targetItem, "Timeout (35s) or tab unresponsive");
       }
       await safeRemoveTab(tab.id);
-    }
-  };
+      safeResolve();
+    }, 35000);
 
-  const listener = (tabId, info) => {
-    if (tabId === tab.id && info.status === 'complete') {
-      injectAndStart();
-    }
-  };
-
-  chrome.tabs.onUpdated.addListener(listener);
-
-  // If tab is already completed/cached
-  if (tab.status === 'complete') {
-    injectAndStart();
-  }
-
-  // Fallback injection if page loading takes too long due to heavy resources/trackers
-  fallbackTimeoutId = setTimeout(() => {
-    injectAndStart();
-  }, 6000);
-
-  // Safety timeout to close tab and log error if unresponsive
-  safetyTimeoutId = setTimeout(async () => {
-    if (!scrapeContext.completed) {
-      scrapeContext.completed = true;
-      activeScrapes.delete(tab.id);
-      await processScrapeError(targetItem, "Timeout (35s) or tab unresponsive");
-    }
-    safeRemoveTab(tab.id);
-  }, 30000);
-
-  // Schedule next check with jitter for natural browsing simulation
-  scheduleNextCheck(targetItem);
+    // Schedule next check with jitter for natural browsing simulation
+    scheduleNextCheck(targetItem);
+  });
 }
 
-// 3. SCHEDULE NEXT CHECK (with Jitter)
+// 4. SCHEDULE NEXT CHECK (with Jitter)
 function scheduleNextCheck(item) {
   const baseMinutes = item.intervalMinutes || 60;
   const jitterMinutes = item.intervalJitter || Math.min(5, baseMinutes * 0.1);
   
   // Randomize interval (e.g. 60min +/- 5min = 55min to 65min)
   const randomMultiplier = (Math.random() * 2) - 1;
-  const finalDelay = baseMinutes + (jitterMinutes * randomMultiplier);
+  const finalDelay = Math.max(2, baseMinutes + (jitterMinutes * randomMultiplier));
 
   chrome.alarms.create(`check_item_${item.id}`, { delayInMinutes: finalDelay });
-  console.log(`Next check for ${item.id} in ~${Math.round(finalDelay)} minutes.`);
+  console.log(`Next check for ${item.id} scheduled in ~${Math.round(finalDelay)} minutes.`);
 }
 
-// 4. PROCESS SCRAPE RESULT (Comparison and persistence)
+// 5. PROCESS SCRAPE RESULT (Comparison and persistence)
 async function processScrapeResult(itemConfig, currentValue, timestamp, currency) {
   const db = await chrome.storage.local.get(['trackingData', 'settings']);
   const trackingData = db.trackingData || {};
@@ -235,7 +351,7 @@ async function processScrapeResult(itemConfig, currentValue, timestamp, currency
   }
 }
 
-// 5. PROCESS SCRAPE ERROR (Preserve previous valid price and history)
+// 6. PROCESS SCRAPE ERROR (Preserve previous valid price and history)
 async function processScrapeError(itemConfig, errorMessage) {
   if (!itemConfig || !itemConfig.id) return;
   const db = await chrome.storage.local.get(['trackingData']);
@@ -253,7 +369,7 @@ async function processScrapeError(itemConfig, errorMessage) {
   console.warn(`Scrape failed for ${itemToUpdate.id}: ${errorMessage}`);
 }
 
-// 6. VISUAL NOTIFICATION HELPER
+// 7. VISUAL NOTIFICATION HELPER
 async function showNotification(item, newValue) {
   await initLang();
   const currency = item.currency || '€';
@@ -271,7 +387,7 @@ async function showNotification(item, newValue) {
   });
 }
 
-// 7. AUDIO PLAYBACK (Offscreen Document for Manifest V3)
+// 8. AUDIO PLAYBACK (Offscreen Document for Manifest V3)
 async function playSound() {
   const offscreenUrl = 'offscreen.html';
   const existingContexts = await chrome.runtime.getContexts({
@@ -296,7 +412,7 @@ async function playSound() {
   }
 }
 
-// 8. CONTEXT MENUS SETUP
+// 9. CONTEXT MENUS SETUP
 async function setupContextMenus() {
     if (isSettingUpContextMenus) return;
     isSettingUpContextMenus = true;
@@ -349,7 +465,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     }
 });
 
-// 9. CONTEXT MENU CLICK LISTENER
+// 10. CONTEXT MENU CLICK LISTENER
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     if (info.menuItemId === "add_to_tracker") {
         const selectedText = info.selectionText;
@@ -422,26 +538,31 @@ function sendMessagePromise(tabId, message) {
     });
 }
 
-// 10. CENTRAL MESSAGE DISPATCHER
+// 11. CENTRAL MESSAGE DISPATCHER
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === "scrape_result") {
+        let resolveFunc = null;
         if (sender.tab && activeScrapes.has(sender.tab.id)) {
             const ctx = activeScrapes.get(sender.tab.id);
             ctx.completed = true;
             if (ctx.cleanup) ctx.cleanup();
+            if (ctx.resolve) resolveFunc = ctx.resolve;
             activeScrapes.delete(sender.tab.id);
         }
         processScrapeResult(message.itemConfig, message.value, message.timestamp, message.currency);
         if (sender.tab) {
             safeRemoveTab(sender.tab.id);
         }
+        if (resolveFunc) resolveFunc();
         sendResponse({ status: "ok" });
         return true;
     } else if (message.action === "scrape_error") {
+        let resolveFunc = null;
         if (sender.tab && activeScrapes.has(sender.tab.id)) {
             const ctx = activeScrapes.get(sender.tab.id);
             ctx.completed = true;
             if (ctx.cleanup) ctx.cleanup();
+            if (ctx.resolve) resolveFunc = ctx.resolve;
             activeScrapes.delete(sender.tab.id);
         }
         console.error(`Scraping error for ${message.itemConfig.id}:`, message.error);
@@ -449,6 +570,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (sender.tab) {
             safeRemoveTab(sender.tab.id);
         }
+        if (resolveFunc) resolveFunc();
         sendResponse({ status: "error_handled" });
         return true;
     } else if (message.action === "force_refresh_all") {
@@ -498,58 +620,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 });
 
-// 11. FORCE REFRESH ALL ITEMS
+// 12. FORCE REFRESH ALL ITEMS (Queues all items, staggered by 2 to 10 min)
 async function forceRefreshAllItems() {
     await initLang();
 
     const data = await chrome.storage.local.get('trackingData');
     const trackingData = data.trackingData || {};
 
-    let hasItems = false;
-    let delayMs = 0;
-
-    // Stagger requests across all categories and products
+    const allItemIds = [];
     for (const category in trackingData) {
         for (const item of trackingData[category].items) {
-            hasItems = true;
-            setTimeout(() => {
-                executeScrape(item.id).catch(err => console.error(`Manual refresh error for ${item.id}:`, err));
-            }, delayMs);
-            delayMs += 1500; // 1.5s delay between background tabs
+            allItemIds.push(item.id);
         }
     }
 
-    if (hasItems) {
-        console.log("Manual refresh started for all items.");
+    if (allItemIds.length > 0) {
+        console.log(`[Queue] Adding ${allItemIds.length} items to scrape queue with 2-10 min staggering.`);
+        await enqueueScrapeItems(allItemIds, { forceImmediate: false });
     } else {
         console.log("No items available to refresh.");
     }
 }
 
-// 12. FORCE REFRESH CATEGORY
+// 13. FORCE REFRESH CATEGORY (Queues category items, staggered by 2 to 10 min)
 async function forceRefreshCategory(catKey) {
     const data = await chrome.storage.local.get('trackingData');
     const trackingData = data.trackingData || {};
     
-    if (trackingData[catKey]) {
-        let delayMs = 0;
-        for (const item of trackingData[catKey].items) {
-            setTimeout(() => {
-                executeScrape(item.id).catch(err => console.error(`Error refreshing ${item.id}:`, err));
-            }, delayMs);
-            delayMs += 1500;
-        }
-        console.log(`Manual refresh started for category ${catKey}.`);
+    if (trackingData[catKey] && Array.isArray(trackingData[catKey].items)) {
+        const itemIds = trackingData[catKey].items.map(i => i.id);
+        console.log(`[Queue] Adding ${itemIds.length} items from category "${catKey}" to scrape queue.`);
+        await enqueueScrapeItems(itemIds, { forceImmediate: false });
     }
 }
 
-// 13. FORCE REFRESH SINGLE ITEM
+// 14. FORCE REFRESH SINGLE ITEM (Prioritized immediate execution)
 async function forceRefreshItem(itemId) {
-    executeScrape(itemId).catch(err => console.error(`Error refreshing ${itemId}:`, err));
-    console.log(`Manual refresh started for item ${itemId}.`);
+    console.log(`[Queue] Immediate refresh requested for item ${itemId}.`);
+    await enqueueScrapeItems(itemId, { forceImmediate: true });
 }
 
-// 14. CHECK OVERDUE ITEMS ON STARTUP
+// 15. CHECK OVERDUE ITEMS ON STARTUP (Staggers checks by 2 to 10 min)
 async function checkOverdueItems() {
     if (isCheckingOverdue) return;
     isCheckingOverdue = true;
@@ -558,7 +669,7 @@ async function checkOverdueItems() {
         const data = await chrome.storage.local.get('trackingData');
         const trackingData = data.trackingData || {};
         const now = Date.now();
-        const overdueItems = [];
+        const overdueItemIds = [];
 
         for (const category in trackingData) {
             for (const item of trackingData[category].items) {
@@ -575,9 +686,9 @@ async function checkOverdueItems() {
                 
                 // If never checked or elapsed interval exceeds threshold
                 if (lastCheckTime === 0 || (now - lastCheckTime) >= intervalMs) {
-                    overdueItems.push(item);
+                    overdueItemIds.push(item.id);
                 } else {
-                    // Ensure active alarm exists for remaining duration
+                    // Ensure active alarm exists for remaining duration with slight jitter
                     const existingAlarm = await chrome.alarms.get(`check_item_${item.id}`);
                     if (!existingAlarm) {
                         const remainingMs = intervalMs - (now - lastCheckTime);
@@ -588,15 +699,9 @@ async function checkOverdueItems() {
             }
         }
 
-        if (overdueItems.length > 0) {
-            console.log(`Found ${overdueItems.length} overdue items. Starting sequential checks...`);
-            let delayMs = 1500;
-            for (const item of overdueItems) {
-                setTimeout(() => {
-                    executeScrape(item.id).catch(err => console.error(`Error checking overdue item ${item.id}:`, err));
-                }, delayMs);
-                delayMs += 2500; // 2.5s delay between tabs for smooth performance
-            }
+        if (overdueItemIds.length > 0) {
+            console.log(`[Startup] Found ${overdueItemIds.length} overdue items. Adding to queue with 2-10 min intervals.`);
+            await enqueueScrapeItems(overdueItemIds, { forceImmediate: false });
         }
     } catch (e) {
         console.error("Error checking overdue items:", e);

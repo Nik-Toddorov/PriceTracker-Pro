@@ -19,35 +19,94 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 });
 
-// Generates a concise and accurate CSS selector for the given element
+// Generates a concise, resilient, and accurate CSS selector for the given element
 function generateUniqueSelector(el) {
     if (!el || el.nodeType !== 1) return "";
     
-    // If the element has an ID, that is the most reliable selector
-    if (el.id) {
-        return "#" + el.id;
+    // 1. If element has an ID, check if it's unique
+    if (el.id && !/^\d+$/.test(el.id) && !el.id.includes('ember') && !el.id.includes('react-')) {
+        try {
+            if (document.querySelectorAll('#' + CSS.escape(el.id)).length === 1) {
+                return '#' + CSS.escape(el.id);
+            }
+        } catch (e) {}
     }
-    
-    const path = [];
-    while (el && el.nodeType === 1) {
-        let selector = el.nodeName.toLowerCase();
+
+    // 2. Check if element has unique meaningful classes
+    if (el.className && typeof el.className === 'string') {
+        const classes = el.className.split(/\s+/).filter(c => 
+            c && 
+            !/^(active|hover|focus|selected|open|closed|show|hide|visible|ng-|css-|styled-)/i.test(c) &&
+            !/^\d+$/.test(c)
+        );
         
-        // Append class names (filtering out dynamic state classes like hover/active)
-        if (el.className && typeof el.className === 'string') {
-            const classes = el.className.split(/\s+/).filter(c => c && !c.includes('hover') && !c.includes('active'));
-            if (classes.length > 0) {
-                selector += "." + classes.join(".");
+        if (classes.length > 0) {
+            const tag = el.nodeName.toLowerCase();
+            const classSel = '.' + classes.map(c => CSS.escape(c)).join('.');
+            try {
+                if (document.querySelectorAll(classSel).length === 1) {
+                    return classSel;
+                }
+                if (document.querySelectorAll(tag + classSel).length === 1) {
+                    return tag + classSel;
+                }
+            } catch (e) {}
+        }
+    }
+
+    // 3. Try standard semantic/eCommerce attributes
+    for (const attr of ['itemprop', 'data-testid', 'data-qa', 'data-cy', 'data-test']) {
+        const val = el.getAttribute(attr);
+        if (val) {
+            const attrSel = `[${attr}="${CSS.escape(val)}"]`;
+            try {
+                if (document.querySelectorAll(attrSel).length === 1) {
+                    return attrSel;
+                }
+            } catch (e) {}
+        }
+    }
+
+    // 4. Concise hierarchical path (max 3 levels)
+    const path = [];
+    let curr = el;
+    let depth = 0;
+
+    while (curr && curr.nodeType === 1 && depth < 3) {
+        let seg = curr.nodeName.toLowerCase();
+
+        if (curr.id && !/^\d+$/.test(curr.id) && !curr.id.includes('ember')) {
+            try {
+                seg += '#' + CSS.escape(curr.id);
+                path.unshift(seg);
+                break;
+            } catch(e) {}
+        }
+
+        if (curr.className && typeof curr.className === 'string') {
+            const validClasses = curr.className.split(/\s+/).filter(c => 
+                c && !/^(active|hover|focus|selected|open|show|hide|ng-|css-)/i.test(c) && !/^\d+$/.test(c)
+            );
+            if (validClasses.length > 0) {
+                seg += '.' + CSS.escape(validClasses[0]);
             }
         }
-        
-        path.unshift(selector);
-        
-        // Stop once we have reached a sufficiently specific path depth (e.g. 3 levels)
-        if (path.length >= 3) break; 
-        
-        el = el.parentNode;
+
+        if (!seg.includes('.') && !seg.includes('#')) {
+            let sib = curr, nth = 1;
+            while (sib = sib.previousElementSibling) {
+                if (sib.nodeName === curr.nodeName) nth++;
+            }
+            if (nth > 1) {
+                seg += `:nth-of-type(${nth})`;
+            }
+        }
+
+        path.unshift(seg);
+        depth++;
+        curr = curr.parentElement;
     }
-    
+
     return path.join(" > ");
 }
 
@@ -102,79 +161,61 @@ function extractPricesFromElement(element, useLowestPrice = true) {
         }
     }
 
-    // 1. Clone element to normalize segmented tags (sup, sub, fraction, cents)
-    let clone;
-    try {
-        clone = targetEl.cloneNode(true);
-    } catch (e) {
-        clone = targetEl;
-    }
+    // Detect currency symbol or abbreviation
+    const fullTextForCurrency = (targetEl.innerText || targetEl.textContent || '').replace(/\u00a0/g, ' ').trim();
+    let currency = '€';
+    if (fullTextForCurrency.includes('лв') || fullTextForCurrency.includes('BGN')) currency = 'лв.';
+    else if (fullTextForCurrency.includes('$')) currency = '$';
+    else if (fullTextForCurrency.includes('£')) currency = '£';
+    else if (fullTextForCurrency.includes('lei') || fullTextForCurrency.includes('Lei') || fullTextForCurrency.includes('RON')) currency = 'Lei';
+    else if (fullTextForCurrency.includes('€') || fullTextForCurrency.includes('EUR')) currency = '€';
 
-    // For Amazon, remove duplicate visible sub-parts if .a-offscreen is present
-    if (clone.querySelector && clone.querySelector('.a-offscreen')) {
-        clone.querySelectorAll('.a-price-whole, .a-price-fraction, .a-price-decimal').forEach(el => el.remove());
-    }
-
-    // Normalize sup, sub, or cents elements missing a decimal point (e.g. 118<sup>85</sup> -> 118.85)
-    if (clone.querySelectorAll) {
-        clone.querySelectorAll('sup, sub, .fraction, .cents, .price-fraction, .price-cents, .cents-holder').forEach(sup => {
-            const t = sup.textContent.trim();
-            if (/^\d{1,2}$/.test(t)) {
-                sup.textContent = '.' + t;
-            }
+    // 1. Try parsing full element text directly first (unified whole container)
+    let wholeContainerNum = null;
+    if (fullTextForCurrency) {
+        const lines = fullTextForCurrency.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
+        const filteredLines = lines.filter(line => {
+            const lower = line.toLowerCase();
+            return !lower.includes('спестява') && 
+                   !lower.includes('разлика') && 
+                   !lower.includes('отстъпка') && 
+                   !lower.includes('save') && 
+                   !lower.includes('discount') &&
+                   !lower.includes('diff') &&
+                   !lower.includes('%');
         });
+
+        const targetSource = filteredLines.length > 0 ? filteredLines.join(' ') : fullTextForCurrency;
+        wholeContainerNum = parsePriceStringToNumber(targetSource);
     }
 
-    // 2. Extract full text from cloned element
-    let fullText = (clone.innerText || clone.textContent || '').replace(/\u00a0/g, ' ');
-
-    // Dynamically extract currency symbol (defaulting to €)
-    const currencyMatch = fullText.match(/(€|\$|£|лв\.?|BGN|USD|EUR|lei|RON)/i);
-    const currency = currencyMatch ? currencyMatch[0].trim() : '€';
-
-    // 3. Split text by lines/delimiters and filter out noise (savings, discounts, percentages)
-    const lines = fullText.split(/[\n\r\t|•]+/);
+    // 2. Discover all price candidates in the subtree/hierarchy
     const candidateNumbers = [];
+    if (wholeContainerNum !== null) {
+        candidateNumbers.push(wholeContainerNum);
+    }
 
-    // Regular expression for keywords representing discounts, savings, installments that are not product prices
-    const ignoreKeywordsRegex = /(?:разлика|спестявате|спести|отстъпка|намаление|save|saving|you save|discount|diff|difference|кредит|вноска|месец|per month|\/mo|отзиви|ревю|rating|reviews|sku)/i;
+    // Traverse child nodes to catch sub-elements, discounts, and promotional tags
+    const allDescendants = [targetEl, ...targetEl.querySelectorAll('*')];
+    for (const el of allDescendants) {
+        // Skip hidden or script elements
+        if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'NOSCRIPT') continue;
 
-    // Regex to match full price numbers (e.g. 158.45 or 1,250.99 or 118.85 or 1250)
-    const fullPriceRegex = /\d+(?:[.,\s]\d{3})*(?:[.,]\d{1,2})?|\d+[.,]\d{1,2}|\d+/g;
+        // Skip discount difference / savings badges
+        const elText = (el.innerText || el.textContent || '').replace(/\u00a0/g, ' ').trim();
+        if (!elText) continue;
 
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-
-        // Skip lines containing savings or difference keywords (e.g. "Save 39.60 €")
-        if (ignoreKeywordsRegex.test(trimmed)) {
+        const lower = elText.toLowerCase();
+        if (lower.includes('спестява') || lower.includes('разлика') || lower.includes('отстъпка') ||
+            lower.includes('save') || lower.includes('discount') || lower.includes('%')) {
             continue;
         }
 
-        // Remove percentage strings (e.g. -25%, 50%) to avoid false price matches
-        const cleanLine = trimmed.replace(/[-+]?\s*\d+(?:[.,]\d+)?\s*%/g, ' ');
-
-        const matches = cleanLine.match(fullPriceRegex);
-        if (matches) {
-            for (const matchStr of matches) {
-                const parsed = parsePriceStringToNumber(matchStr);
-                if (parsed !== null && !candidateNumbers.includes(parsed)) {
-                    candidateNumbers.push(parsed);
-                }
-            }
-        }
-    }
-
-    // Fallback: search the entire cleaned text if line-based parsing found no numbers
-    if (candidateNumbers.length === 0) {
-        const fallbackText = fullText.replace(/[-+]?\s*\d+(?:[.,]\d+)?\s*%/g, ' ');
-        const matches = fallbackText.match(fullPriceRegex);
-        if (matches) {
-            for (const matchStr of matches) {
-                const parsed = parsePriceStringToNumber(matchStr);
-                if (parsed !== null && !candidateNumbers.includes(parsed)) {
-                    candidateNumbers.push(parsed);
-                }
+        // If the element has direct text content or is a price wrapper
+        const parsed = parsePriceStringToNumber(elText);
+        if (parsed !== null && parsed > 0) {
+            if (!candidateNumbers.includes(parsed)) {
+                candidateNumbers.push(parsed);
             }
         }
     }
@@ -183,16 +224,178 @@ function extractPricesFromElement(element, useLowestPrice = true) {
         return { value: null, currency };
     }
 
-    let finalValue;
+    // Filter out isolated segmented decimals/cents (e.g. if numbers contain [118.85, 85, 118], 85 is decimal fragment)
+    const validPrices = candidateNumbers.filter(num => {
+        if (num < 1 && candidateNumbers.some(other => other >= 1)) return false;
+        // If a candidate is an isolated fraction/integer of an already present float price
+        const isSegmentedCent = candidateNumbers.some(full => {
+            if (full > 10 && num <= 99 && num >= 1 && Number.isInteger(num)) {
+                const cents = Math.round((full - Math.floor(full)) * 100);
+                if (cents === num) return true;
+            }
+            return false;
+        });
+        return !isSegmentedCent;
+    });
+
+    const pricesToEvaluate = validPrices.length > 0 ? validPrices : candidateNumbers;
+
+    let finalValue = pricesToEvaluate[0];
     if (useLowestPrice) {
-        // Take the lowest price among valid product prices found in the hierarchy
-        finalValue = Math.min(...candidateNumbers);
-    } else {
-        // Take the first detected price
-        finalValue = candidateNumbers[0];
+        // Select lowest price among valid candidates (e.g. promotional price)
+        finalValue = Math.min(...pricesToEvaluate);
     }
 
     return { value: finalValue, currency, candidateCount: candidateNumbers.length };
+}
+
+/**
+ * Intelligently searches for the target element using direct query and progressive fallback strategies.
+ */
+function findTargetElement(selector, itemType = 'price') {
+    if (!selector) return null;
+
+    // 1. Direct query selector
+    try {
+        const el = document.querySelector(selector);
+        if (el) return el;
+    } catch (e) {}
+
+    // 2. Relaxed selector (strip :nth-of-type and try sub-selectors)
+    try {
+        if (selector.includes(':nth-of-type')) {
+            const withoutNth = selector.replace(/:nth-of-type\(\d+\)/g, '');
+            const el = document.querySelector(withoutNth);
+            if (el) return el;
+        }
+
+        const segments = selector.split(/\s*>\s*|\s+/).filter(Boolean);
+        if (segments.length > 1) {
+            // Try last 2 segments
+            const subSelector = segments.slice(-2).join(' ');
+            const el = document.querySelector(subSelector);
+            if (el) return el;
+
+            // Try target leaf segment
+            const leafSelector = segments[segments.length - 1];
+            if (leafSelector && (leafSelector.includes('.') || leafSelector.includes('#'))) {
+                const elLeaf = document.querySelector(leafSelector);
+                if (elLeaf) return elLeaf;
+            }
+        }
+    } catch (e) {}
+
+    // 3. eCommerce price selector fallbacks (if itemType === 'price')
+    if (itemType === 'price') {
+        const priceCandidates = [
+            'p.product-new-price',
+            '.product-new-price',
+            '.product-price',
+            '.pricing-block .product-new-price',
+            '.price-current',
+            '.main-price',
+            '.price-box',
+            '.price-wrapper',
+            '.a-price',
+            '.a-price .a-offscreen',
+            '#priceblock_ourprice',
+            '#priceblock_dealprice',
+            '[itemprop="price"]',
+            '[data-testid*="price"]',
+            '[class*="product-new-price"]',
+            '[class*="product-price"]',
+            '[class*="price-new"]',
+            '[class*="main-price"]',
+            '[class*="current-price"]'
+        ];
+
+        for (const cand of priceCandidates) {
+            try {
+                const els = document.querySelectorAll(cand);
+                for (const candidateEl of els) {
+                    const check = extractPricesFromElement(candidateEl, true);
+                    if (check.value !== null && check.value > 0) {
+                        return candidateEl;
+                    }
+                }
+            } catch (e) {}
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Waits for target element with MutationObserver, periodic polling, and progressive fallback.
+ */
+function waitForElement(selector, itemType, timeoutMs = 20000) {
+    return new Promise((resolve) => {
+        // Immediate check
+        const initial = findTargetElement(selector, itemType);
+        if (initial) {
+            return resolve(initial);
+        }
+
+        let observer = null;
+        let intervalId = null;
+        let timeoutId = null;
+        let scrollAttempts = 0;
+
+        const cleanup = () => {
+            if (observer) {
+                observer.disconnect();
+                observer = null;
+            }
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
+        };
+
+        // MutationObserver to watch DOM subtree updates
+        observer = new MutationObserver(() => {
+            const el = findTargetElement(selector, itemType);
+            if (el) {
+                cleanup();
+                resolve(el);
+            }
+        });
+
+        const targetNode = document.documentElement || document.body;
+        if (targetNode) {
+            observer.observe(targetNode, {
+                childList: true,
+                subtree: true
+            });
+        }
+
+        // Periodic polling fallback every 250ms with light scroll nudge for lazy hydration
+        intervalId = setInterval(() => {
+            const el = findTargetElement(selector, itemType);
+            if (el) {
+                cleanup();
+                resolve(el);
+                return;
+            }
+
+            // Lightly nudge scroll every 4th tick (1s) to trigger lazy-load / hydration
+            scrollAttempts++;
+            if (scrollAttempts % 4 === 0 && window.scrollY < 800) {
+                window.scrollBy(0, 200);
+            }
+        }, 250);
+
+        // Maximum timeout fallback
+        timeoutId = setTimeout(() => {
+            const el = findTargetElement(selector, itemType);
+            cleanup();
+            resolve(el || null);
+        }, timeoutMs);
+    });
 }
 
 async function executeScrapingTask(config) {
@@ -202,8 +405,8 @@ async function executeScrapingTask(config) {
             await simulateHumanBehavior();
         }
 
-        // 2. Wait for target element to appear in DOM (up to 10s)
-        let element = await waitForElement(config.selector, 10000);
+        // 2. Wait for target element to appear in DOM (up to 20s with progressive fallback)
+        let element = await waitForElement(config.selector, config.type || "price", 20000);
 
         if (!element) {
             throw new Error(`Element with selector "${config.selector}" was not found.`);
@@ -248,75 +451,9 @@ async function executeScrapingTask(config) {
 }
 
 /**
- * Waits for an element to appear in DOM using MutationObserver + periodic polling (safe for background tabs).
- */
-function waitForElement(selector, timeoutMs) {
-    return new Promise((resolve) => {
-        // Check if element is already present
-        const existing = document.querySelector(selector);
-        if (existing) {
-            return resolve(existing);
-        }
-
-        let observer = null;
-        let intervalId = null;
-        let timeoutId = null;
-
-        const cleanup = () => {
-            if (observer) {
-                observer.disconnect();
-                observer = null;
-            }
-            if (intervalId) {
-                clearInterval(intervalId);
-                intervalId = null;
-            }
-            if (timeoutId) {
-                clearTimeout(timeoutId);
-                timeoutId = null;
-            }
-        };
-
-        // Setup MutationObserver to watch for DOM updates
-        observer = new MutationObserver(() => {
-            const el = document.querySelector(selector);
-            if (el) {
-                cleanup();
-                resolve(el);
-            }
-        });
-
-        const targetNode = document.documentElement || document.body;
-        if (targetNode) {
-            observer.observe(targetNode, {
-                childList: true,
-                subtree: true
-            });
-        }
-
-        // Periodic polling fallback every 200ms for inactive background tabs
-        intervalId = setInterval(() => {
-            const el = document.querySelector(selector);
-            if (el) {
-                cleanup();
-                resolve(el);
-            }
-        }, 200);
-
-        // Maximum timeout fallback
-        timeoutId = setTimeout(() => {
-            const el = document.querySelector(selector);
-            cleanup();
-            resolve(el || null);
-        }, timeoutMs);
-    });
-}
-
-/**
  * Simulates human browsing behavior: concurrent non-linear mouse movement and randomized scrolling to bypass bot detections.
  */
 async function simulateHumanBehavior() {
-    // Randomized total duration between 3s and 7s
     const totalDuration = Math.floor(Math.random() * 4000) + 3000;
 
     // Run scrolling and mouse movement concurrently
@@ -330,14 +467,11 @@ async function simulateScrolling(duration) {
     const endTime = Date.now() + duration;
     
     while (Date.now() < endTime) {
-        // Randomize scroll direction (predominantly downwards)
         const direction = Math.random() > 0.3 ? 1 : -1;
-        // Scroll distance between 100px and 800px
         const scrollAmount = Math.floor(Math.random() * 700 + 100) * direction;
         
         window.scrollBy(0, scrollAmount);
         
-        // Randomized delay between scroll steps
         const delay = Math.floor(Math.random() * 1000) + 500;
         await new Promise(r => setTimeout(r, Math.min(delay, endTime - Date.now())));
     }
@@ -353,14 +487,12 @@ async function simulateMouseMovement(duration) {
         const targetX = Math.random() * window.innerWidth;
         const targetY = Math.random() * window.innerHeight;
         
-        // Duration for each mouse segment (300ms to 1200ms)
         const moveDuration = Math.floor(Math.random() * 900) + 300;
         await moveMouseSmoothly(currentX, currentY, targetX, targetY, moveDuration, endTime);
         
         currentX = targetX;
         currentY = targetY;
         
-        // Pause after movement
         const pause = Math.floor(Math.random() * 400) + 100;
         await new Promise(r => setTimeout(r, Math.min(pause, endTime - Date.now())));
     }
@@ -369,11 +501,8 @@ async function simulateMouseMovement(duration) {
 function moveMouseSmoothly(startX, startY, endX, endY, duration, absoluteEndTime) {
     return new Promise(resolve => {
         const startTime = Date.now();
-        
-        // Ease In-Out acceleration curve for natural motion
         const easeInOutQuad = t => t < .5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 
-        // Bezier control points for non-linear curve
         const controlX = startX + (endX - startX) * Math.random() + (Math.random() * 200 - 100);
         const controlY = startY + (endY - startY) * Math.random() + (Math.random() * 200 - 100);
 
@@ -388,11 +517,9 @@ function moveMouseSmoothly(startX, startY, endX, endY, duration, absoluteEndTime
             let progress = Math.min(elapsed / duration, 1);
             let easeProgress = easeInOutQuad(progress);
 
-            // Quadratic Bezier interpolation
             const currentX = (1 - easeProgress) * (1 - easeProgress) * startX + 2 * (1 - easeProgress) * easeProgress * controlX + easeProgress * easeProgress * endX;
             const currentY = (1 - easeProgress) * (1 - easeProgress) * startY + 2 * (1 - easeProgress) * easeProgress * controlY + easeProgress * easeProgress * endY;
 
-            // Dispatch synthetic MouseMove event
             const event = new MouseEvent('mousemove', {
                 view: window,
                 bubbles: true,
@@ -405,7 +532,7 @@ function moveMouseSmoothly(startX, startY, endX, endY, duration, absoluteEndTime
             document.dispatchEvent(event);
 
             if (progress < 1) {
-                setTimeout(step, 40); // Use setTimeout (40ms) instead of RAF to run reliably in inactive background tabs
+                setTimeout(step, 40);
             } else {
                 resolve();
             }

@@ -9,6 +9,10 @@ desktop.ini
 *.swp
 *.swo
 
+# AI & Agent Configurations
+AGENTS.md
+.agents/
+
 # Node & Package Managers
 node_modules/
 npm-debug.log*

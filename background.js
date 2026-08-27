@@ -9,12 +9,13 @@ const activeScrapes = new Map(); // tabId -> { itemId, targetItem, completed, cl
 // Queue state variables
 let isProcessingQueue = false;
 let currentActiveScrapeItemId = null;
+let queueTimeoutId = null;
 const QUEUE_ALARM_NAME = 'scrape_queue_dispatcher';
 
-// Helper function to generate a randomized delay between 2 and 10 minutes in milliseconds
+// Helper function to generate a randomized delay between 10 seconds and 3 minutes in milliseconds
 function getRandomStaggerDelayMs() {
-  const minMs = 2 * 60 * 1000;  // 2 minutes
-  const maxMs = 10 * 60 * 1000; // 10 minutes
+  const minMs = 10 * 1000;      // 10 seconds
+  const maxMs = 3 * 60 * 1000;  // 3 minutes (180 seconds)
   return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
 }
 
@@ -66,7 +67,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 });
 
-// 2. SCRAPE QUEUE MANAGEMENT (Staggers checks between sites by 2 to 10 minutes)
+// 2. SCRAPE QUEUE MANAGEMENT (Staggers checks between sites by 10s to 3 min)
 async function enqueueScrapeItems(itemIds, options = { forceImmediate: false }) {
   if (!Array.isArray(itemIds)) itemIds = [itemIds];
   if (itemIds.length === 0) return;
@@ -97,6 +98,10 @@ async function dispatchQueue(forceImmediate = false) {
   const queue = data.scrapeQueue || [];
   if (queue.length === 0) {
     chrome.alarms.clear(QUEUE_ALARM_NAME);
+    if (queueTimeoutId) {
+      clearTimeout(queueTimeoutId);
+      queueTimeoutId = null;
+    }
     return;
   }
 
@@ -111,9 +116,16 @@ async function dispatchQueue(forceImmediate = false) {
     if (elapsed >= nextStaggerMs) {
       await runNextItemFromQueue();
     } else {
-      const remainingMinutes = (nextStaggerMs - elapsed) / (60 * 1000);
-      console.log(`[Queue] Next site check scheduled in ~${remainingMinutes.toFixed(1)} min (staggered 2-10 min).`);
+      const remainingMs = nextStaggerMs - elapsed;
+      const remainingMinutes = remainingMs / (60 * 1000);
+      const remainingSeconds = Math.round(remainingMs / 1000);
+      console.log(`[Queue] Next site check scheduled in ~${remainingSeconds}s (~${remainingMinutes.toFixed(2)} min, staggered 10s-3min).`);
       chrome.alarms.create(QUEUE_ALARM_NAME, { delayInMinutes: Math.max(0.1, remainingMinutes) });
+
+      if (queueTimeoutId) clearTimeout(queueTimeoutId);
+      queueTimeoutId = setTimeout(async () => {
+        await dispatchQueue();
+      }, remainingMs);
     }
   }
 }
@@ -121,6 +133,11 @@ async function dispatchQueue(forceImmediate = false) {
 async function runNextItemFromQueue() {
   if (isProcessingQueue || currentActiveScrapeItemId) return;
   isProcessingQueue = true;
+  if (queueTimeoutId) {
+    clearTimeout(queueTimeoutId);
+    queueTimeoutId = null;
+  }
+  chrome.alarms.clear(QUEUE_ALARM_NAME);
 
   try {
     const data = await chrome.storage.local.get(['scrapeQueue']);
@@ -143,13 +160,19 @@ async function runNextItemFromQueue() {
     const now = Date.now();
     await chrome.storage.local.set({ lastScrapeTimestamp: now });
 
-    // Schedule next in queue after 2-10 minutes
+    // Schedule next in queue after 10s - 3min
     const data = await chrome.storage.local.get(['scrapeQueue']);
     if (data.scrapeQueue && data.scrapeQueue.length > 0) {
       const nextStaggerMs = getRandomStaggerDelayMs();
       const delayMinutes = nextStaggerMs / (60 * 1000);
-      console.log(`[Queue] Staggering next queued site check by ${delayMinutes.toFixed(1)} minutes.`);
+      const delaySeconds = Math.round(nextStaggerMs / 1000);
+      console.log(`[Queue] Staggering next queued site check by ${delaySeconds}s (~${delayMinutes.toFixed(2)} min).`);
       chrome.alarms.create(QUEUE_ALARM_NAME, { delayInMinutes: delayMinutes });
+
+      if (queueTimeoutId) clearTimeout(queueTimeoutId);
+      queueTimeoutId = setTimeout(async () => {
+        await dispatchQueue();
+      }, nextStaggerMs);
     }
   }
 }
@@ -620,7 +643,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 });
 
-// 12. FORCE REFRESH ALL ITEMS (Queues all items, staggered by 2 to 10 min)
+// 12. FORCE REFRESH ALL ITEMS (Queues all items, staggered by 10s to 3 min)
 async function forceRefreshAllItems() {
     await initLang();
 
@@ -635,21 +658,21 @@ async function forceRefreshAllItems() {
     }
 
     if (allItemIds.length > 0) {
-        console.log(`[Queue] Adding ${allItemIds.length} items to scrape queue with 2-10 min staggering.`);
+        console.log(`[Queue] Adding ${allItemIds.length} items to scrape queue with 10s-3min staggering.`);
         await enqueueScrapeItems(allItemIds, { forceImmediate: false });
     } else {
         console.log("No items available to refresh.");
     }
 }
 
-// 13. FORCE REFRESH CATEGORY (Queues category items, staggered by 2 to 10 min)
+// 13. FORCE REFRESH CATEGORY (Queues category items, staggered by 10s to 3 min)
 async function forceRefreshCategory(catKey) {
     const data = await chrome.storage.local.get('trackingData');
     const trackingData = data.trackingData || {};
     
     if (trackingData[catKey] && Array.isArray(trackingData[catKey].items)) {
         const itemIds = trackingData[catKey].items.map(i => i.id);
-        console.log(`[Queue] Adding ${itemIds.length} items from category "${catKey}" to scrape queue.`);
+        console.log(`[Queue] Adding ${itemIds.length} items from category "${catKey}" to scrape queue with 10s-3min staggering.`);
         await enqueueScrapeItems(itemIds, { forceImmediate: false });
     }
 }
@@ -660,7 +683,7 @@ async function forceRefreshItem(itemId) {
     await enqueueScrapeItems(itemId, { forceImmediate: true });
 }
 
-// 15. CHECK OVERDUE ITEMS ON STARTUP (Staggers checks by 2 to 10 min)
+// 15. CHECK OVERDUE ITEMS ON STARTUP (Staggers checks by 10s to 3 min)
 async function checkOverdueItems() {
     if (isCheckingOverdue) return;
     isCheckingOverdue = true;
@@ -700,7 +723,7 @@ async function checkOverdueItems() {
         }
 
         if (overdueItemIds.length > 0) {
-            console.log(`[Startup] Found ${overdueItemIds.length} overdue items. Adding to queue with 2-10 min intervals.`);
+            console.log(`[Startup] Found ${overdueItemIds.length} overdue items. Adding to queue with 10s-3min intervals.`);
             await enqueueScrapeItems(overdueItemIds, { forceImmediate: false });
         }
     } catch (e) {

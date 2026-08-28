@@ -158,7 +158,24 @@ export const translations = {
         "err_invalid_price": "Extracted price is not a valid number",
         "last_check_failed": "Last check failed",
         "last_check": "Last check",
-        "last_attempt": "Last attempt"
+        "last_attempt": "Last attempt",
+        "current_text": "Current text",
+        "text_changed_badge": "Text Changed",
+        "mark_reviewed_btn": "✓ Mark as Reviewed",
+        "reviewed_success": "Marked as reviewed!",
+        "text_history_title": "Text Change History",
+        "text_history_modal_title": "Text History",
+        "initial_version": "Initial recorded text",
+        "no_text_history": "No text changes recorded yet.",
+        "diff_label": "Changes",
+        "full_text_label": "Full Text",
+        "reviewed_state": "Reviewed",
+        "unreviewed_state": "New Change",
+        "cat_text_badge": "Text",
+        "view_full_text": "View full text / history",
+        "cat_text_history_title": "Group Text History",
+        "mark_all_group_reviewed_btn": "✓ Mark All in Group as Reviewed",
+        "all_reviewed_success": "All items in group marked as reviewed!"
     },
     bg: {
         "app_title": "Price & Text Tracker",
@@ -319,7 +336,24 @@ export const translations = {
         "err_invalid_price": "Извлечената цена не е валидно число",
         "last_check_failed": "Последната проверка беше неуспешна",
         "last_check": "Последна проверка",
-        "last_attempt": "Последен опит"
+        "last_attempt": "Последен опит",
+        "current_text": "Текущ текст",
+        "text_changed_badge": "Променен текст",
+        "mark_reviewed_btn": "✓ Прегледано",
+        "reviewed_success": "Маркирано като прегледано!",
+        "text_history_title": "Хронология на текстовите промени",
+        "text_history_modal_title": "История на текста",
+        "initial_version": "Първоначално записан текст",
+        "no_text_history": "Все още няма записани промени в текста.",
+        "diff_label": "Промени",
+        "full_text_label": "Пълен текст",
+        "reviewed_state": "Прегледано",
+        "unreviewed_state": "Нова промяна",
+        "cat_text_badge": "Текст",
+        "view_full_text": "Виж пълния текст / история",
+        "cat_text_history_title": "История на текста за групата",
+        "mark_all_group_reviewed_btn": "✓ Маркирай всички в групата като прегледани",
+        "all_reviewed_success": "Всички артикули в групата са маркирани като прегледани!"
     }
 };
 

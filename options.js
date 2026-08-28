@@ -13,6 +13,52 @@ function escapeHtml(text) {
         .replace(/'/g, '&#039;');
 }
 
+// Word-level text diff computation with highlight markers
+function computeTextDiff(oldText, newText) {
+    if (!oldText) {
+        return `<mark class="diff-ins">${escapeHtml(newText)}</mark>`;
+    }
+    if (oldText === newText) {
+        return escapeHtml(newText);
+    }
+
+    const oldWords = String(oldText).split(/(\s+)/);
+    const newWords = String(newText).split(/(\s+)/);
+
+    const matrix = Array(oldWords.length + 1).fill(null).map(() => Array(newWords.length + 1).fill(0));
+    for (let i = 0; i < oldWords.length; i++) {
+        for (let j = 0; j < newWords.length; j++) {
+            if (oldWords[i] === newWords[j]) {
+                matrix[i + 1][j + 1] = matrix[i][j] + 1;
+            } else {
+                matrix[i + 1][j + 1] = Math.max(matrix[i + 1][j], matrix[i][j + 1]);
+            }
+        }
+    }
+
+    let i = oldWords.length, j = newWords.length;
+    const diffs = [];
+
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && oldWords[i - 1] === newWords[j - 1]) {
+            diffs.unshift({ type: 'same', text: oldWords[i - 1] });
+            i--; j--;
+        } else if (j > 0 && (i === 0 || matrix[i][j - 1] >= matrix[i - 1][j])) {
+            diffs.unshift({ type: 'ins', text: newWords[j - 1] });
+            j--;
+        } else if (i > 0 && (j === 0 || matrix[i][j - 1] < matrix[i - 1][j])) {
+            diffs.unshift({ type: 'del', text: oldWords[i - 1] });
+            i--;
+        }
+    }
+
+    return diffs.map(d => {
+        if (d.type === 'ins') return `<mark class="diff-ins">${escapeHtml(d.text)}</mark>`;
+        if (d.type === 'del') return `<del class="diff-del">${escapeHtml(d.text)}</del>`;
+        return escapeHtml(d.text);
+    }).join('');
+}
+
 chrome.storage.local.get(['themePreference'], (data) => {
     const theme = data.themePreference || 'auto';
     if (theme === 'dark') document.documentElement.classList.add('theme-dark');
@@ -36,10 +82,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
     document.getElementById('exportBtn').addEventListener('click', exportData);
     document.getElementById('importBtn').addEventListener('click', importData);
-    
+
     const driveBackupBtn = document.getElementById('driveBackupBtn');
     if (driveBackupBtn) driveBackupBtn.addEventListener('click', backupToDrive);
-    
+
     const driveRestoreBtn = document.getElementById('driveRestoreBtn');
     if (driveRestoreBtn) driveRestoreBtn.addEventListener('click', restoreFromDrive);
 
@@ -48,7 +94,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const autoCleanDuplicatesBtn = document.getElementById('autoCleanDuplicatesBtn');
     if (autoCleanDuplicatesBtn) autoCleanDuplicatesBtn.addEventListener('click', autoCleanExactDuplicates);
-    
+
     let activePickerContext = null;
 
     function handlePickerResult(pickerData) {
@@ -59,7 +105,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const raw = sessionStorage.getItem('activePickerContext');
                 if (raw) ctx = JSON.parse(raw);
-            } catch (e) {}
+            } catch (e) { }
         }
 
         const editModal = document.getElementById('editItemModal');
@@ -154,11 +200,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Event delegation for dynamically generated buttons
     document.getElementById('trackedItemsList').addEventListener('click', handleListClicks);
+    document.getElementById('textHistoryContainer').addEventListener('click', handleListClicks);
 
     // Show/hide input for custom category name
     const catSelect = document.getElementById('catSelect');
     const catNameInput = document.getElementById('catName');
-    
+
     if (catSelect && catNameInput) {
         catSelect.addEventListener('change', (e) => {
             if (e.target.value === '__NEW__') {
@@ -184,8 +231,21 @@ function handleListClicks(e) {
         chrome.runtime.sendMessage({ action: "force_refresh_category", catKey: target.dataset.catkey });
         target.innerText = t("check_progress");
         setTimeout(() => target.innerText = t("refresh_all_now"), 3000);
-    } else if (target.classList.contains('btn-item-history')) {
-        window.showItemHistory(target.dataset.catkey, target.dataset.itemid);
+    } else if (target.classList.contains('btn-item-history') || target.closest('.btn-item-history')) {
+        const btn = target.classList.contains('btn-item-history') ? target : target.closest('.btn-item-history');
+        const catKey = btn.dataset.catkey;
+        const itemId = btn.dataset.itemid;
+        chrome.storage.local.get('trackingData', (data) => {
+            const trackingData = data.trackingData || {};
+            const item = trackingData[catKey]?.items.find(i => i.id === itemId);
+            if (item) {
+                if (item.type === 'text') {
+                    window.showTextItemHistory(catKey, itemId, item, trackingData[catKey]?.categoryName);
+                } else {
+                    window.showItemHistory(catKey, itemId);
+                }
+            }
+        });
     } else if (target.classList.contains('btn-item-edit')) {
         window.openEditItemModal(target.dataset.catkey, target.dataset.itemid);
     } else if (target.classList.contains('btn-item-delete')) {
@@ -194,6 +254,13 @@ function handleListClicks(e) {
         chrome.runtime.sendMessage({ action: "force_refresh_item", itemId: target.dataset.itemid });
         target.innerText = t("check_progress");
         setTimeout(() => target.innerText = t("refresh_btn"), 3000);
+    } else if (target.classList.contains('btn-mark-reviewed')) {
+        const catKey = target.dataset.catkey;
+        const itemId = target.dataset.itemid;
+        window.markTextItemReviewed(catKey, itemId);
+    } else if (target.classList.contains('btn-mark-cat-reviewed')) {
+        const catKey = target.dataset.catkey;
+        window.markAllCategoryTextReviewed(catKey);
     } else if (target.closest('.toggle-cat')) {
         const toggleBtn = target.closest('.toggle-cat');
         const catKey = toggleBtn.dataset.catkey;
@@ -219,7 +286,7 @@ function initTabs() {
         tab.addEventListener('click', () => {
             tabs.forEach(t => t.classList.remove('active'));
             contents.forEach(c => c.classList.remove('active'));
-            
+
             tab.classList.add('active');
             document.getElementById(tab.dataset.target).classList.add('active');
         });
@@ -235,7 +302,7 @@ function normalizeUrl(rawUrl) {
     try {
         const parsed = new URL(rawUrl.trim());
         parsed.hash = '';
-        
+
         // Remove common tracking, affiliate, and session parameters
         const trackingParams = [
             'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
@@ -243,16 +310,16 @@ function normalizeUrl(rawUrl) {
             'ref', 'ref_', 'tag', 'linkcode', 'spm', 'scm', '_ga', '_gl',
             'pd_rd_w', 'pd_rd_r', 'pd_rd_wg', 'pf_rd_p', 'pf_rd_r'
         ];
-        
+
         for (const param of trackingParams) {
             parsed.searchParams.delete(param);
         }
-        
+
         let path = parsed.pathname;
         if (path.length > 1 && path.endsWith('/')) {
             parsed.pathname = path.slice(0, -1);
         }
-        
+
         return parsed.toString().toLowerCase();
     } catch (e) {
         return rawUrl.trim().toLowerCase().replace(/\/+$/, '');
@@ -331,7 +398,7 @@ async function handleAddItem(e) {
 
     const catSelect = document.getElementById('catSelect').value;
     let catName = '';
-    
+
     if (catSelect === '__NEW__') {
         catName = document.getElementById('catName').value.trim();
     } else {
@@ -344,7 +411,7 @@ async function handleAddItem(e) {
     }
 
     const catKey = 'cat_' + catName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    
+
     const url = document.getElementById('itemUrl').value.trim();
     const selector = document.getElementById('itemSelector').value.trim();
 
@@ -359,15 +426,15 @@ async function handleAddItem(e) {
             alert(t("duplicate_exact_error", { cat: duplicate.categoryName }));
             return;
         } else if (duplicate.matchType === 'overlap') {
-            const confirmed = confirm(t("duplicate_overlap_confirm", { 
-                cat: duplicate.categoryName, 
-                sel: duplicate.item.selector 
+            const confirmed = confirm(t("duplicate_overlap_confirm", {
+                cat: duplicate.categoryName,
+                sel: duplicate.item.selector
             }));
             if (!confirmed) return;
         } else if (duplicate.matchType === 'same_url') {
-            const confirmed = confirm(t("duplicate_same_url_confirm", { 
-                cat: duplicate.categoryName, 
-                sel: duplicate.item.selector 
+            const confirmed = confirm(t("duplicate_same_url_confirm", {
+                cat: duplicate.categoryName,
+                sel: duplicate.item.selector
             }));
             if (!confirmed) return;
         }
@@ -417,7 +484,7 @@ function formatDateTime(isoString) {
         const hours = String(d.getHours()).padStart(2, '0');
         const minutes = String(d.getMinutes()).padStart(2, '0');
         return `${day}.${month}.${year} ${hours}:${minutes}`;
-    } catch(e) {
+    } catch (e) {
         return '';
     }
 }
@@ -428,14 +495,14 @@ async function renderTrackedItems() {
     const data = await chrome.storage.local.get('trackingData');
     const trackingData = data.trackingData || {};
 
-    container.innerHTML = ''; 
+    container.innerHTML = '';
 
     // Populate category dropdown with existing categories
     const catSelect = document.getElementById('catSelect');
     if (catSelect) {
         // Preserve current selection if possible
         const currentValue = catSelect.value;
-        
+
         catSelect.innerHTML = `
             <option value="">${t("choose_existing")}</option>
             <option value="__NEW__">${t("create_new_cat")}</option>
@@ -452,7 +519,7 @@ async function renderTrackedItems() {
             option.textContent = catName;
             catSelect.appendChild(option);
         });
-        
+
         if (currentValue && currentValue !== '__NEW__' && uniqueCategories.has(currentValue)) {
             catSelect.value = currentValue;
         }
@@ -473,18 +540,33 @@ async function renderTrackedItems() {
         // Find lowest price across category
         let catBestPrice = Infinity;
         let hasPrice = false;
+        let hasText = false;
+        let hasUnreadText = false;
+
         catData.items.forEach(item => {
             if (item.type === 'price' && item.history && item.history.length > 0) {
                 const currentVal = item.history[item.history.length - 1].value;
-                if (currentVal < catBestPrice) {
+                if (typeof currentVal === 'number' && currentVal < catBestPrice) {
                     catBestPrice = currentVal;
                     hasPrice = true;
                 }
+            } else if (item.type === 'text') {
+                hasText = true;
+                if (item.hasUnreadTextChange) {
+                    hasUnreadText = true;
+                }
             }
         });
-        const catCurrency = catData.items[0]?.currency || '€';
-        const catBestPriceText = hasPrice ? `${catBestPrice} ${catCurrency}` : t("no_data");
-        const catTrend = getCategoryTrend(catData);
+
+        const catCurrency = catData.items.find(i => i.type === 'price')?.currency || '€';
+        const catTrend = hasPrice ? getCategoryTrend(catData) : '';
+        const unreadBadge = hasUnreadText ? `<span class="badge-text-changed" title="${t("text_changed_badge")}">⚠️</span>` : '';
+        const catPriceSummary = hasPrice 
+            ? `<span style="color: var(--success-color); font-size: 14px; font-weight: bold; white-space: nowrap; display: flex; align-items: center; gap: 5px;">(${catBestPrice} ${catCurrency}) ${catTrend}</span>` 
+            : '';
+
+        const isAllText = catData.items.every(i => i.type === 'text');
+        const catHistoryIcon = isAllText ? '📝 ' + t("history_btn").replace('📈', '').trim() : t("history_btn");
 
         // Category Header
         const header = document.createElement('div');
@@ -492,13 +574,13 @@ async function renderTrackedItems() {
         header.innerHTML = `
             <div class="toggle-cat" data-catkey="${escapeHtml(catKey)}" style="cursor: pointer; flex-grow: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">
                 <span style="font-size: 16px; white-space: nowrap;">📁 <b>${escapeHtml(catData.categoryName)}</b></span>
-                <span style="color: var(--success-color); font-size: 14px; font-weight: bold; white-space: nowrap; display: flex; align-items: center; gap: 5px;">
-                    (${t("best_price")}: ${catBestPriceText}) ${catTrend} <span class="arrow-icon">▾</span>
-                </span>
+                ${catPriceSummary}
+                ${unreadBadge}
+                <span class="arrow-icon">▾</span>
             </div>
             <div style="display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; margin-left: 10px;">
                 <button class="success btn-cat-refresh" data-catkey="${escapeHtml(catKey)}">${t("refresh_btn")}</button>
-                <button class="success btn-cat-history" data-catkey="${escapeHtml(catKey)}">${t("history_btn")}</button>
+                <button class="success btn-cat-history" data-catkey="${escapeHtml(catKey)}">${catHistoryIcon}</button>
                 <button class="danger btn-cat-delete" data-catkey="${escapeHtml(catKey)}">${t("delete_btn")}</button>
             </div>
         `;
@@ -513,32 +595,13 @@ async function renderTrackedItems() {
         catData.items.forEach(item => {
             const row = document.createElement('div');
             row.className = 'item-row';
-            
-            // Extract current price and optional best historical price
-            let currentPriceDisplay = t("no_data");
-            let bestPriceDisplay = "";
-            let domain = t("site");
-            try { domain = new URL(item.url).hostname; } catch(e){}
-            const itemTrend = getItemTrend(item);
 
-            if (item.history.length > 0) {
-                if (item.type === 'price') {
-                    const currency = item.currency || '€';
-                    const currentVal = item.history[item.history.length - 1].value;
-                    currentPriceDisplay = `${currentVal} ${currency}`;
-                    
-                    const minVal = Math.min(...item.history.map(h => h.value));
-                    if (minVal < currentVal) {
-                        bestPriceDisplay = ` <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">(${t("best_price")}: ${minVal} ${currency})</span>`;
-                    }
-                } else {
-                    currentPriceDisplay = t("checked");
-                }
-            }
+            let domain = t("site");
+            try { domain = new URL(item.url).hostname; } catch (e) { }
 
             const isError = item.lastCheckStatus === 'error';
-            const errorBadge = isError 
-                ? ` <b class="badge-error" title="${escapeHtml(getTranslatedError(item.lastError))}" style="color: var(--danger-color); font-size: 16px; font-weight: 900; margin-left: 6px; cursor: help; line-height: 1;">!</b>` 
+            const errorBadge = isError
+                ? ` <b class="badge-error" title="${escapeHtml(getTranslatedError(item.lastError))}" style="color: var(--danger-color); font-size: 16px; font-weight: 900; margin-left: 6px; cursor: help; line-height: 1;">!</b>`
                 : '';
 
             let lastCheckRow = "";
@@ -566,12 +629,24 @@ async function renderTrackedItems() {
             const typeLabel = item.type === 'price' ? t("type_price").split("(")[0].trim() : t("type_text").split("(")[0].trim();
             const macroText = item.requiresMacro ? ` • ${t("yes")}` : '';
 
-            row.innerHTML = `
-                <div class="item-details" style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px;">
-                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                        <a href="${escapeHtml(item.url)}" target="_blank" style="text-decoration: none; color: var(--link-color); font-weight: bold; font-size: 14px;">${escapeHtml(domain)} <span style="font-size: 11px; font-weight: normal; color: var(--text-muted);">(${t("open")})</span></a>
-                        <span style="font-size: 11px; background: var(--bg-item-header); border: 1px solid var(--border-color); padding: 1px 6px; border-radius: 4px; color: var(--text-muted);">${typeLabel} • ~${item.intervalMinutes} ${t("min")}${macroText ? ' • Macro' : ''}</span>
-                    </div>
+            let mainContentHtml = '';
+            if (item.type === 'price') {
+                let currentPriceDisplay = t("no_data");
+                let bestPriceDisplay = "";
+                const itemTrend = getItemTrend(item);
+
+                if (item.history && item.history.length > 0) {
+                    const currency = item.currency || '€';
+                    const currentVal = item.history[item.history.length - 1].value;
+                    currentPriceDisplay = `${currentVal} ${currency}`;
+
+                    const minVal = Math.min(...item.history.map(h => h.value));
+                    if (minVal < currentVal) {
+                        bestPriceDisplay = ` <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">(${t("best_price")}: ${minVal} ${currency})</span>`;
+                    }
+                }
+
+                mainContentHtml = `
                     <div style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: bold; color: var(--text-strong);">
                         <span>${t("current_price")}:</span>
                         <span>${currentPriceDisplay}</span>
@@ -579,11 +654,54 @@ async function renderTrackedItems() {
                         ${bestPriceDisplay}
                         ${errorBadge}
                     </div>
+                `;
+            } else {
+                // Text tracking layout
+                const history = item.history || [];
+                const currentVal = history.length > 0 ? history[history.length - 1].value : t("no_data");
+                const isChanged = item.hasUnreadTextChange || (item.reviewedText && item.reviewedText !== currentVal && history.length > 1);
+
+                if (isChanged) {
+                    let diffDisplay = '';
+                    if (item.previousText && item.previousText !== currentVal) {
+                        diffDisplay = `<div style="margin-top: 4px;"><b>${t("diff_label")}:</b> ${computeTextDiff(item.previousText, currentVal)}</div>`;
+                    } else {
+                        diffDisplay = `<div style="margin-top: 4px;"><mark class="diff-ins">${escapeHtml(currentVal)}</mark></div>`;
+                    }
+
+                    mainContentHtml = `
+                        <div class="text-changed-box">
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #856404;">
+                                <span>${t("current_text")}: <span class="badge-text-changed">⚠️ ${t("text_changed_badge")}</span>${errorBadge}</span>
+                                <button class="btn-mark-reviewed" data-catkey="${escapeHtml(catKey)}" data-itemid="${escapeHtml(item.id)}" title="${t("mark_reviewed_btn")}">
+                                    ${t("mark_reviewed_btn")}
+                                </button>
+                            </div>
+                            ${diffDisplay}
+                        </div>
+                    `;
+                } else {
+                    mainContentHtml = `
+                        <div style="margin-top: 2px;">
+                            <span style="font-size: 13px; font-weight: bold; color: var(--text-strong);">${t("current_text")}:</span>
+                            <div class="text-preview-box">${escapeHtml(currentVal)}${errorBadge}</div>
+                        </div>
+                    `;
+                }
+            }
+
+            row.innerHTML = `
+                <div class="item-details" style="flex-grow: 1; display: flex; flex-direction: column; gap: 4px;">
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <a href="${escapeHtml(item.url)}" target="_blank" style="text-decoration: none; color: var(--link-color); font-weight: bold; font-size: 14px;">${escapeHtml(domain)} <span style="font-size: 11px; font-weight: normal; color: var(--text-muted);">(${t("open")})</span></a>
+                        <span style="font-size: 11px; background: var(--bg-item-header); border: 1px solid var(--border-color); padding: 1px 6px; border-radius: 4px; color: var(--text-muted);">${typeLabel} • ~${item.intervalMinutes} ${t("min")}${macroText ? ' • Macro' : ''}</span>
+                    </div>
+                    ${mainContentHtml}
                     ${lastCheckRow}
                 </div>
                 <div class="item-actions" style="display: flex; gap: 5px; flex-shrink: 0; align-items: center;">
                     <button class="success btn-item-refresh" data-itemid="${escapeHtml(item.id)}">${t("refresh_btn")}</button>
-                    <button class="success btn-item-history" data-catkey="${escapeHtml(catKey)}" data-itemid="${escapeHtml(item.id)}">${t("history_btn")}</button>
+                    <button class="success btn-item-history" data-catkey="${escapeHtml(catKey)}" data-itemid="${escapeHtml(item.id)}">${item.type === 'text' ? '📝 ' + t("history_btn").replace('📈', '').trim() : t("history_btn")}</button>
                     <button class="success btn-item-edit" data-catkey="${escapeHtml(catKey)}" data-itemid="${escapeHtml(item.id)}">${t("edit_btn")}</button>
                     <button class="danger btn-item-delete" data-catkey="${escapeHtml(catKey)}" data-itemid="${escapeHtml(item.id)}">${t("delete_btn")}</button>
                 </div>
@@ -597,7 +715,7 @@ async function renderTrackedItems() {
 }
 
 // --- DELETION HELPERS (Globally accessible) ---
-window.deleteItem = async function(catKey, itemId) {
+window.deleteItem = async function (catKey, itemId) {
     if (!confirm(t("confirm_delete_item"))) return;
 
     const data = await chrome.storage.local.get('trackingData');
@@ -605,7 +723,7 @@ window.deleteItem = async function(catKey, itemId) {
 
     if (trackingData[catKey]) {
         trackingData[catKey].items = trackingData[catKey].items.filter(i => i.id !== itemId);
-        
+
         // Remove associated background alarm
         chrome.alarms.clear(`check_item_${itemId}`);
 
@@ -620,7 +738,7 @@ window.deleteItem = async function(catKey, itemId) {
     }
 };
 
-window.deleteCategory = async function(catKey) {
+window.deleteCategory = async function (catKey) {
     if (!confirm(t("confirm_delete_cat"))) return;
 
     const data = await chrome.storage.local.get('trackingData');
@@ -644,10 +762,10 @@ async function loadSettings() {
     const data = await chrome.storage.local.get(['settings', 'themePreference']);
     const settings = data.settings || { notificationsEnabled: true, notificationSound: true, language: 'en' };
     const theme = data.themePreference || 'auto';
-    
+
     document.getElementById('settingNotif').checked = settings.notificationsEnabled;
     document.getElementById('settingSound').checked = settings.notificationSound;
-    
+
     const themeSelect = document.getElementById('settingTheme');
     if (themeSelect) {
         themeSelect.value = theme;
@@ -665,13 +783,13 @@ async function saveSettings() {
         language: document.getElementById('settingLanguage') ? document.getElementById('settingLanguage').value : 'en'
     };
     const themePreference = document.getElementById('settingTheme').value;
-    
+
     await chrome.storage.local.set({ settings, themePreference });
-    
+
     document.documentElement.classList.remove('theme-dark', 'theme-light');
     if (themePreference === 'dark') document.documentElement.classList.add('theme-dark');
     else if (themePreference === 'light') document.documentElement.classList.add('theme-light');
-    
+
     alert(t("settings_saved"));
     window.location.reload(); // Reload to apply language immediately
 }
@@ -704,10 +822,10 @@ async function exportData() {
     const data = await chrome.storage.local.get('trackingData');
     const trackingData = data.trackingData || {};
     const exportObject = {};
-    
+
     // Get all checked categories
     const checkboxes = document.querySelectorAll('#exportCategoryList input[type="checkbox"]:checked');
-    
+
     if (checkboxes.length === 0) {
         alert(t("export_empty"));
         return;
@@ -724,10 +842,10 @@ async function exportData() {
     // Generate download JSON file
     const blob = new Blob([JSON.stringify(exportObject, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    
-    chrome.downloads.download({ 
-        url: url, 
-        filename: `price_tracker_export_${new Date().toISOString().split('T')[0]}.json` 
+
+    chrome.downloads.download({
+        url: url,
+        filename: `price_tracker_export_${new Date().toISOString().split('T')[0]}.json`
     });
 }
 
@@ -742,19 +860,19 @@ async function importData() {
     const file = fileInput.files[0];
     const reader = new FileReader();
 
-    reader.onload = async function(e) {
+    reader.onload = async function (e) {
         try {
             const importedData = JSON.parse(e.target.result);
-            
+
             // Get current tracking database
             const data = await chrome.storage.local.get('trackingData');
             const currentData = data.trackingData || {};
 
             // Merge imported data with current data
             const mergedData = Object.assign({}, currentData, importedData);
-            
+
             await chrome.storage.local.set({ trackingData: mergedData });
-            
+
             // Re-create alarms for imported products
             for (const catKey in importedData) {
                 importedData[catKey].items.forEach(item => {
@@ -783,7 +901,7 @@ async function checkForDraftItem() {
         // Populate form with draft values
         document.getElementById('itemUrl').value = data.draftItem.url;
         document.getElementById('itemSelector').value = data.draftItem.selector;
-        
+
         // Infer whether value is price or text
         const numericValue = parseFloat(data.draftItem.value.replace(/[^0-9.,]/g, '').replace(',', '.'));
         if (!isNaN(numericValue) && data.draftItem.value.match(/\d/)) {
@@ -803,27 +921,278 @@ async function checkForDraftItem() {
 function handleManualRefresh(e) {
     const btn = e.target;
     const originalText = btn.innerHTML;
-    
+
     btn.innerHTML = t("check_progress");
     btn.disabled = true;
 
     chrome.runtime.sendMessage({ action: "force_refresh_all" }, () => {
         setTimeout(async () => {
             btn.innerHTML = t("check_done");
-            
+
             // Allow background scripts to finish and re-render
             setTimeout(async () => {
                 await renderTrackedItems();
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             }, 3000);
-            
+
         }, 500);
     });
 }
 
 // --- HISTORY & CHARTS ---
-window.showItemHistory = async function(catKey, itemId) {
+window.markTextItemReviewed = async function (catKey, itemId) {
+    const data = await chrome.storage.local.get('trackingData');
+    const trackingData = data.trackingData || {};
+    const item = trackingData[catKey]?.items.find(i => i.id === itemId);
+    if (item && item.type === 'text') {
+        const history = item.history || [];
+        const latestVal = history.length > 0 ? history[history.length - 1].value : '';
+        item.reviewedText = latestVal;
+        item.hasUnreadTextChange = false;
+        item.previousText = null;
+
+        await chrome.storage.local.set({ trackingData });
+        await renderTrackedItems();
+
+        const modal = document.getElementById('historyModal');
+        if (modal.style.display === 'block') {
+            const titleEl = document.getElementById('modalTitle');
+            if (titleEl.innerText.includes(t("cat_text_history_title"))) {
+                window.showCategoryTextHistory(catKey, trackingData[catKey]);
+            } else {
+                window.showTextItemHistory(catKey, itemId, item, trackingData[catKey]?.categoryName);
+            }
+        }
+    }
+};
+
+window.markAllCategoryTextReviewed = async function (catKey) {
+    const data = await chrome.storage.local.get('trackingData');
+    const trackingData = data.trackingData || {};
+    const catData = trackingData[catKey];
+    if (catData && Array.isArray(catData.items)) {
+        catData.items.forEach(item => {
+            if (item.type === 'text') {
+                const history = item.history || [];
+                const latestVal = history.length > 0 ? history[history.length - 1].value : '';
+                item.reviewedText = latestVal;
+                item.hasUnreadTextChange = false;
+                item.previousText = null;
+            }
+        });
+
+        await chrome.storage.local.set({ trackingData });
+        await renderTrackedItems();
+
+        const modal = document.getElementById('historyModal');
+        if (modal.style.display === 'block') {
+            window.showCategoryTextHistory(catKey, catData);
+        }
+    }
+};
+
+window.showTextItemHistory = function (catKey, itemId, item, categoryName) {
+    const modal = document.getElementById('historyModal');
+    const titleEl = document.getElementById('modalTitle');
+    const chartContainer = document.getElementById('priceChartContainer');
+    const textHistoryContainer = document.getElementById('textHistoryContainer');
+
+    let siteName = t("site");
+    try { siteName = new URL(item.url).hostname; } catch (e) { }
+
+    titleEl.innerText = `📝 ${t("text_history_modal_title")}: ${siteName}`;
+    chartContainer.style.display = 'none';
+    textHistoryContainer.style.display = 'block';
+
+    const history = item.history || [];
+    if (history.length === 0) {
+        textHistoryContainer.innerHTML = `<p style="text-align:center; color: var(--text-muted);">${t("no_text_history")}</p>`;
+        modal.style.display = 'block';
+        return;
+    }
+
+    let html = `<div class="text-history-timeline">`;
+
+    // Reverse history to display newest changes first
+    const reversed = [...history].reverse();
+    for (let idx = 0; idx < reversed.length; idx++) {
+        const entry = reversed[idx];
+        const prevEntry = (idx + 1 < reversed.length) ? reversed[idx + 1] : null;
+        const isLatest = idx === 0;
+        const versionNum = history.length - idx;
+
+        let diffHtml = '';
+        if (prevEntry) {
+            diffHtml = `
+                <div style="margin-top: 6px; font-size: 13px;">
+                    <b>${t("diff_label")}:</b><br>
+                    <div style="padding: 8px 10px; background: var(--bg-container); border: 1px solid var(--border-color); border-radius: 4px; margin-top: 4px;">
+                        ${computeTextDiff(prevEntry.value, entry.value)}
+                    </div>
+                </div>
+            `;
+        } else {
+            diffHtml = `
+                <div style="margin-top: 4px; font-size: 12px; color: var(--text-muted); font-style: italic;">
+                    📌 ${t("initial_version")}
+                </div>
+            `;
+        }
+
+        const isUnreviewed = isLatest && (item.hasUnreadTextChange || (item.reviewedText && item.reviewedText !== entry.value && history.length > 1));
+        const statusBadge = isUnreviewed
+            ? `<span class="badge-text-changed">⚠️ ${t("unreviewed_state")}</span>`
+            : `<span style="font-size: 11px; color: var(--success-color); font-weight: bold;">✓ ${t("reviewed_state")}</span>`;
+
+        const markBtn = isUnreviewed ? `
+            <button class="btn-mark-reviewed" data-catkey="${escapeHtml(catKey)}" data-itemid="${escapeHtml(item.id)}">
+                ${t("mark_reviewed_btn")}
+            </button>
+        ` : '';
+
+        html += `
+            <div class="text-history-card ${isLatest ? 'latest' : ''}">
+                <div class="text-history-header">
+                    <span><b>#${versionNum}</b> • 🕒 ${formatDateTime(entry.date)}</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">${statusBadge} ${markBtn}</div>
+                </div>
+                ${diffHtml}
+                <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+                    <details>
+                        <summary style="cursor: pointer; font-weight: 500;">${t("full_text_label")}</summary>
+                        <div style="padding: 6px 8px; background: var(--bg-container); border: 1px solid var(--border-color); border-radius: 4px; margin-top: 4px; white-space: pre-wrap; font-family: monospace;">${escapeHtml(entry.value)}</div>
+                    </details>
+                </div>
+            </div>
+        `;
+    }
+
+    html += `</div>`;
+    textHistoryContainer.innerHTML = html;
+    modal.style.display = 'block';
+};
+
+window.showCategoryTextHistory = function (catKey, catData) {
+    const modal = document.getElementById('historyModal');
+    const titleEl = document.getElementById('modalTitle');
+    const chartContainer = document.getElementById('priceChartContainer');
+    const textHistoryContainer = document.getElementById('textHistoryContainer');
+
+    titleEl.innerText = `📁 ${t("cat_text_history_title")}: ${catData.categoryName}`;
+    chartContainer.style.display = 'none';
+    textHistoryContainer.style.display = 'block';
+
+    const allEvents = [];
+    let unreviewedCount = 0;
+
+    catData.items.forEach(item => {
+        if (item.type !== 'text' || !item.history) return;
+
+        let domain = t("site");
+        try { domain = new URL(item.url).hostname; } catch (e) { }
+
+        for (let idx = 0; idx < item.history.length; idx++) {
+            const entry = item.history[idx];
+            const prevEntry = idx > 0 ? item.history[idx - 1] : null;
+            const isLatest = idx === item.history.length - 1;
+            const isUnreviewed = isLatest && (item.hasUnreadTextChange || (item.reviewedText && item.reviewedText !== entry.value && item.history.length > 1));
+
+            if (isUnreviewed) unreviewedCount++;
+
+            allEvents.push({
+                catKey,
+                itemId: item.id,
+                url: item.url,
+                domain,
+                date: entry.date,
+                value: entry.value,
+                prevValue: prevEntry ? prevEntry.value : null,
+                versionNum: idx + 1,
+                isLatest,
+                isUnreviewed
+            });
+        }
+    });
+
+    if (allEvents.length === 0) {
+        textHistoryContainer.innerHTML = `<p style="text-align:center; color: var(--text-muted);">${t("no_text_history")}</p>`;
+        modal.style.display = 'block';
+        return;
+    }
+
+    // Sort all events chronologically (newest first)
+    allEvents.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    let html = `<div class="text-history-timeline">`;
+
+    if (unreviewedCount > 0) {
+        html += `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 8px;">
+                <span style="font-size: 13px; font-weight: bold; color: var(--text-strong);">⚠️ ${unreviewedCount} ${t("text_changed_badge")}</span>
+                <button class="btn-mark-cat-reviewed" data-catkey="${escapeHtml(catKey)}" style="background-color: #ffc107; color: #212529; border: none; padding: 5px 10px; font-size: 11px; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                    ${t("mark_all_group_reviewed_btn")}
+                </button>
+            </div>
+        `;
+    }
+
+    for (let idx = 0; idx < allEvents.length; idx++) {
+        const ev = allEvents[idx];
+        let diffHtml = '';
+        if (ev.prevValue) {
+            diffHtml = `
+                <div style="margin-top: 6px; font-size: 13px;">
+                    <b>${t("diff_label")}:</b><br>
+                    <div style="padding: 8px 10px; background: var(--bg-container); border: 1px solid var(--border-color); border-radius: 4px; margin-top: 4px;">
+                        ${computeTextDiff(ev.prevValue, ev.value)}
+                    </div>
+                </div>
+            `;
+        } else {
+            diffHtml = `
+                <div style="margin-top: 4px; font-size: 12px; color: var(--text-muted); font-style: italic;">
+                    📌 ${t("initial_version")}
+                </div>
+            `;
+        }
+
+        const statusBadge = ev.isUnreviewed
+            ? `<span class="badge-text-changed">⚠️ ${t("unreviewed_state")}</span>`
+            : `<span style="font-size: 11px; color: var(--success-color); font-weight: bold;">✓ ${t("reviewed_state")}</span>`;
+
+        const markBtn = ev.isUnreviewed ? `
+            <button class="btn-mark-reviewed" data-catkey="${escapeHtml(catKey)}" data-itemid="${escapeHtml(ev.itemId)}" style="margin: 0; padding: 4px 8px;">
+                ${t("mark_reviewed_btn")}
+            </button>
+        ` : '';
+
+        html += `
+            <div class="text-history-card ${ev.isLatest ? 'latest' : ''}">
+                <div class="text-history-header">
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <a href="${escapeHtml(ev.url)}" target="_blank" style="text-decoration: none; color: var(--link-color); font-weight: bold; font-size: 13px;">🌐 ${escapeHtml(ev.domain)}</a>
+                        <span>(<b>#${ev.versionNum}</b> • 🕒 ${formatDateTime(ev.date)})</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">${statusBadge} ${markBtn}</div>
+                </div>
+                ${diffHtml}
+                <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+                    <details>
+                        <summary style="cursor: pointer; font-weight: 500;">${t("full_text_label")}</summary>
+                        <div style="padding: 6px 8px; background: var(--bg-container); border: 1px solid var(--border-color); border-radius: 4px; margin-top: 4px; white-space: pre-wrap; font-family: monospace;">${escapeHtml(ev.value)}</div>
+                    </details>
+                </div>
+            </div>
+        `;
+    }
+
+    html += `</div>`;
+    textHistoryContainer.innerHTML = html;
+    modal.style.display = 'block';
+};
+
+window.showItemHistory = async function (catKey, itemId) {
     const data = await chrome.storage.local.get('trackingData');
     const trackingData = data.trackingData || {};
     const item = trackingData[catKey]?.items.find(i => i.id === itemId);
@@ -833,18 +1202,15 @@ window.showItemHistory = async function(catKey, itemId) {
         return;
     }
 
-    if (item.type !== 'price') {
-        alert(t("history_no_prices"));
-        return;
-    }
+    if (item.type !== 'price') return;
 
     const labels = item.history.map(h => new Date(h.date).toLocaleString());
     const prices = item.history.map(h => h.value);
-    
+
     let siteName = t("site");
     try {
         siteName = new URL(item.url).hostname;
-    } catch(e) {}
+    } catch (e) { }
 
     const dataset = {
         label: `${t("type_price")} @ ${siteName}`,
@@ -859,7 +1225,7 @@ window.showItemHistory = async function(catKey, itemId) {
     renderChart(t("history_chart_title_site"), labels, [dataset]);
 };
 
-window.showCategoryHistory = async function(catKey) {
+window.showCategoryHistory = async function (catKey) {
     const data = await chrome.storage.local.get('trackingData');
     const trackingData = data.trackingData || {};
     const catData = trackingData[catKey];
@@ -869,60 +1235,74 @@ window.showCategoryHistory = async function(catKey) {
         return;
     }
 
-    let allEvents = [];
-    catData.items.forEach(item => {
-        if (item.type === 'price' && item.history) {
-            item.history.forEach(h => {
-                allEvents.push({
-                    date: h.date,
-                    value: h.value,
-                    itemId: item.id
-                });
-            });
-        }
-    });
+    const hasPrices = catData.items.some(item => item.type === 'price' && item.history && item.history.length > 0);
+    const hasText = catData.items.some(item => item.type === 'text' && item.history && item.history.length > 0);
 
-    if (allEvents.length === 0) {
+    if (hasText && !hasPrices) {
+        window.showCategoryTextHistory(catKey, catData);
+        return;
+    }
+
+    if (!hasPrices && !hasText) {
         alert(t("history_no_data"));
         return;
     }
 
-    // Sort chronologically
-    allEvents.sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-    const labels = [];
-    const lowestPrices = [];
-    const currentPrices = {}; 
+    if (hasPrices) {
+        let allEvents = [];
+        catData.items.forEach(item => {
+            if (item.type === 'price' && item.history) {
+                item.history.forEach(h => {
+                    allEvents.push({
+                        date: h.date,
+                        value: h.value,
+                        itemId: item.id
+                    });
+                });
+            }
+        });
 
-    allEvents.forEach(event => {
-        currentPrices[event.itemId] = event.value;
-        
-        const pricesArray = Object.values(currentPrices);
-        const minPrice = Math.min(...pricesArray);
-        
-        labels.push(new Date(event.date).toLocaleString());
-        lowestPrices.push(minPrice);
-    });
+        // Sort chronologically
+        allEvents.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    const dataset = {
-        label: t("lowest_price_all"),
-        data: lowestPrices,
-        borderColor: getComputedStyle(document.documentElement).getPropertyValue('--success-color').trim() || '#28a745',
-        backgroundColor: 'rgba(40,167,69,0.1)',
-        fill: true,
-        tension: 0.1,
-        stepped: true
-    };
+        const labels = [];
+        const lowestPrices = [];
+        const currentPrices = {};
 
-    renderChart(`${t("history_chart_title_cat")} "${catData.categoryName}"`, labels, [dataset]);
+        allEvents.forEach(event => {
+            currentPrices[event.itemId] = event.value;
+
+            const pricesArray = Object.values(currentPrices);
+            const minPrice = Math.min(...pricesArray);
+
+            labels.push(new Date(event.date).toLocaleString());
+            lowestPrices.push(minPrice);
+        });
+
+        const dataset = {
+            label: t("lowest_price_all"),
+            data: lowestPrices,
+            borderColor: getComputedStyle(document.documentElement).getPropertyValue('--success-color').trim() || '#28a745',
+            backgroundColor: 'rgba(40,167,69,0.1)',
+            fill: true,
+            tension: 0.1,
+            stepped: true
+        };
+
+        renderChart(`${t("history_chart_title_cat")} "${catData.categoryName}"`, labels, [dataset]);
+    }
 };
 
 function renderChart(title, labels, datasets) {
     const modal = document.getElementById('historyModal');
     const titleEl = document.getElementById('modalTitle');
+    const chartContainer = document.getElementById('priceChartContainer');
+    const textHistoryContainer = document.getElementById('textHistoryContainer');
     const ctx = document.getElementById('priceChart').getContext('2d');
 
     titleEl.innerText = title;
+    textHistoryContainer.style.display = 'none';
+    chartContainer.style.display = 'block';
     modal.style.display = 'block';
 
     if (priceChartInstance) {
@@ -977,12 +1357,12 @@ function getCategoryTrend(catData) {
 
     allEvents.sort((a, b) => new Date(a.date) - new Date(b.date));
     const lowestPrices = [];
-    const currentPrices = {}; 
+    const currentPrices = {};
     allEvents.forEach(event => {
         currentPrices[event.itemId] = event.value;
         const minPrice = Math.min(...Object.values(currentPrices));
         if (lowestPrices.length === 0 || lowestPrices[lowestPrices.length - 1] !== minPrice) {
-             lowestPrices.push(minPrice);
+            lowestPrices.push(minPrice);
         }
     });
 
@@ -1000,7 +1380,7 @@ function getItemTrend(item) {
     if (item.type !== 'price' || !item.history || item.history.length < 2) {
         return '<span style="color: #ffc107; font-size:18px; -webkit-text-stroke: 1px #ffc107; text-shadow: 0px 0px 1px rgba(0,0,0,0.3);" title="${t("no_change")}">○</span>';
     }
-    
+
     const last = item.history[item.history.length - 1].value;
     const prev = item.history[item.history.length - 2].value;
 
@@ -1010,7 +1390,7 @@ function getItemTrend(item) {
 }
 
 // --- EDIT ITEM MODAL LOGIC ---
-window.openEditItemModal = async function(catKey, itemId) {
+window.openEditItemModal = async function (catKey, itemId) {
     const data = await chrome.storage.local.get('trackingData');
     const trackingData = data.trackingData || {};
     const item = trackingData[catKey]?.items.find(i => i.id === itemId);
@@ -1023,7 +1403,7 @@ window.openEditItemModal = async function(catKey, itemId) {
     document.getElementById('editItemJitter').value = item.intervalJitter !== undefined ? item.intervalJitter : 5;
     document.getElementById('editItemMacro').checked = !!item.requiresMacro;
     document.getElementById('editItemUseLowestPrice').checked = item.useLowestPrice !== false;
-    
+
     document.getElementById('editItemCatKey').value = catKey;
     document.getElementById('editItemId').value = itemId;
 
@@ -1050,7 +1430,7 @@ window.addEventListener('click', (event) => {
 document.getElementById('saveEditItemBtn').addEventListener('click', async () => {
     const catKey = document.getElementById('editItemCatKey').value;
     const itemId = document.getElementById('editItemId').value;
-    
+
     const newUrl = document.getElementById('editItemUrl').value.trim();
     const newSelector = document.getElementById('editItemSelector').value.trim();
     const newType = document.getElementById('editItemType').value;
@@ -1074,20 +1454,20 @@ document.getElementById('saveEditItemBtn').addEventListener('click', async () =>
             alert(t("duplicate_exact_error", { cat: duplicate.categoryName }));
             return;
         } else if (duplicate.matchType === 'overlap') {
-            const confirmed = confirm(t("duplicate_overlap_confirm", { 
-                cat: duplicate.categoryName, 
-                sel: duplicate.item.selector 
+            const confirmed = confirm(t("duplicate_overlap_confirm", {
+                cat: duplicate.categoryName,
+                sel: duplicate.item.selector
             }));
             if (!confirmed) return;
         } else if (duplicate.matchType === 'same_url') {
-            const confirmed = confirm(t("duplicate_same_url_confirm", { 
-                cat: duplicate.categoryName, 
-                sel: duplicate.item.selector 
+            const confirmed = confirm(t("duplicate_same_url_confirm", {
+                cat: duplicate.categoryName,
+                sel: duplicate.item.selector
             }));
             if (!confirmed) return;
         }
     }
-    
+
     const itemIndex = trackingData[catKey]?.items.findIndex(i => i.id === itemId);
     if (itemIndex > -1) {
         trackingData[catKey].items[itemIndex].url = newUrl;
@@ -1099,7 +1479,7 @@ document.getElementById('saveEditItemBtn').addEventListener('click', async () =>
         trackingData[catKey].items[itemIndex].useLowestPrice = newUseLowest;
 
         await chrome.storage.local.set({ trackingData });
-        
+
         // Trigger refresh with new parameters immediately
         chrome.runtime.sendMessage({ action: "force_refresh_item", itemId: itemId });
 
@@ -1120,7 +1500,7 @@ function setDriveStatus(text, isError = false) {
 
 async function getAuthToken() {
     return new Promise((resolve, reject) => {
-        chrome.identity.getAuthToken({ interactive: true }, function(token) {
+        chrome.identity.getAuthToken({ interactive: true }, function (token) {
             if (chrome.runtime.lastError) {
                 reject(chrome.runtime.lastError);
             } else {
@@ -1142,21 +1522,21 @@ async function backupToDrive() {
     try {
         setDriveStatus(t("connecting_drive"));
         const token = await getAuthToken();
-        
+
         const data = await chrome.storage.local.get(['trackingData', 'settings', 'themePreference']);
         const fileContent = JSON.stringify(data);
-        
+
         setDriveStatus(t("searching_backup"));
         const existingFileId = await findDriveFile(token);
-        
+
         setDriveStatus(t("uploading_data"));
         if (existingFileId) {
             // Update existing file
             const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media`, {
                 method: 'PATCH',
-                headers: { 
-                    Authorization: `Bearer ${token}`, 
-                    'Content-Type': 'application/json' 
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
                 },
                 body: fileContent
             });
@@ -1165,7 +1545,7 @@ async function backupToDrive() {
             // Create new file
             const metadata = { name: 'PriceTrackerSyncData.json', parents: ['appDataFolder'] };
             const boundary = "-------314159265358979323846";
-            const body = 
+            const body =
                 "\r\n--" + boundary + "\r\n" +
                 "Content-Type: application/json; charset=UTF-8\r\n\r\n" +
                 JSON.stringify(metadata) + "\r\n" +
@@ -1184,7 +1564,7 @@ async function backupToDrive() {
             });
             if (!res.ok) throw new Error(t("drive_create_fail"));
         }
-        
+
         setDriveStatus(t("drive_success"));
         setTimeout(() => setDriveStatus(""), 3000);
     } catch (err) {
@@ -1195,29 +1575,29 @@ async function backupToDrive() {
 
 async function restoreFromDrive() {
     if (!confirm(t("drive_warn_restore"))) return;
-    
+
     try {
         setDriveStatus(t("connecting_drive"));
         const token = await getAuthToken();
-        
+
         setDriveStatus(t("searching_backup"));
         const fileId = await findDriveFile(token);
         if (!fileId) {
             setDriveStatus(t("drive_no_backup"), true);
             return;
         }
-        
+
         setDriveStatus(t("downloading_data"));
         const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
             headers: { Authorization: `Bearer ${token}` }
         });
-        
+
         if (!res.ok) throw new Error(t("drive_download_err"));
         const data = await res.json();
-        
+
         if (data.trackingData || data.settings) {
             await chrome.storage.local.set(data);
-            
+
             // Recreate alarms
             chrome.alarms.clearAll(() => {
                 if (data.trackingData) {
@@ -1234,7 +1614,7 @@ async function restoreFromDrive() {
         } else {
             setDriveStatus(t("drive_corrupt"), true);
         }
-        
+
     } catch (err) {
         console.error(err);
         setDriveStatus(t("error_prefix") + err.message, true);
@@ -1420,7 +1800,7 @@ async function autoCleanExactDuplicates() {
 
     const data = await chrome.storage.local.get('trackingData');
     const trackingData = data.trackingData || {};
-    
+
     const seen = new Set();
     let removedCount = 0;
 

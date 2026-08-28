@@ -332,10 +332,17 @@ async function processScrapeResult(itemConfig, currentValue, timestamp, currency
       isNewLowest = true;
     }
   } else if (itemToUpdate.type === "text") {
-      parsedValue = currentValue;
+      parsedValue = typeof currentValue === 'string' ? currentValue.trim() : String(currentValue || '').trim();
       const lastRecorded = history.length > 0 ? history[history.length - 1].value : null;
-      if (currentValue !== lastRecorded) {
+      if (lastRecorded !== null && parsedValue !== lastRecorded) {
           isNewLowest = true; 
+          itemToUpdate.hasUnreadTextChange = true;
+          itemToUpdate.previousText = lastRecorded;
+      } else if (lastRecorded === null) {
+          // First check ever
+          itemToUpdate.reviewedText = parsedValue;
+          itemToUpdate.hasUnreadTextChange = false;
+          itemToUpdate.previousText = null;
       }
   }
 
@@ -639,6 +646,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         
         sendResponse({ status: "ok" });
+        return true;
+    } else if (message.action === "mark_text_reviewed") {
+        (async () => {
+            const db = await chrome.storage.local.get('trackingData');
+            const trackingData = db.trackingData || {};
+            const { item: targetItem } = findItemAndCategory(trackingData, message.itemId);
+            if (targetItem && targetItem.type === 'text') {
+                const history = targetItem.history || [];
+                const latestVal = history.length > 0 ? history[history.length - 1].value : (message.reviewedText || '');
+                targetItem.reviewedText = latestVal;
+                targetItem.hasUnreadTextChange = false;
+                targetItem.previousText = null;
+                await chrome.storage.local.set({ trackingData });
+                sendResponse({ status: "ok" });
+            } else {
+                sendResponse({ status: "not_found" });
+            }
+        })();
         return true;
     }
 });

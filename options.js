@@ -65,6 +65,29 @@ chrome.storage.local.get(['themePreference'], (data) => {
     else if (theme === 'light') document.documentElement.classList.add('theme-light');
 });
 
+// --- STATE PRESERVATION ---
+let expandedCategories = new Set();
+try {
+    const saved = JSON.parse(sessionStorage.getItem('openCategories') || '[]');
+    if (Array.isArray(saved)) saved.forEach(k => expandedCategories.add(k));
+} catch (e) { }
+
+function getCurrentlyOpenCategories() {
+    const openSet = new Set(expandedCategories);
+    document.querySelectorAll('.category-block').forEach(block => {
+        const itemsDiv = block.querySelector('[id^="items_"]');
+        if (itemsDiv) {
+            const catKey = itemsDiv.id.replace('items_', '');
+            if (itemsDiv.style.display !== 'none') {
+                openSet.add(catKey);
+            } else {
+                openSet.delete(catKey);
+            }
+        }
+    });
+    return openSet;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     await initLang();
     applyTranslations();
@@ -178,6 +201,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    let renderDebounceTimer = null;
+    function debouncedRender(delay = 200) {
+        if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
+        renderDebounceTimer = setTimeout(() => {
+            renderTrackedItems();
+            renderExportCheckboxes();
+        }, delay);
+    }
+
     // Listen for storage changes (picker data or updated prices from background)
     chrome.storage.onChanged.addListener((changes, namespace) => {
         if (namespace === 'local') {
@@ -185,8 +217,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 handlePickerResult(changes.latestPickerData.newValue);
             }
             if (changes.trackingData) {
-                renderTrackedItems();
-                renderExportCheckboxes();
+                debouncedRender(200);
             }
         }
     });
@@ -273,6 +304,14 @@ function handleListClicks(e) {
             if (span) {
                 span.innerText = isHidden ? '▴' : '▾';
             }
+            if (isHidden) {
+                expandedCategories.add(catKey);
+            } else {
+                expandedCategories.delete(catKey);
+            }
+            try {
+                sessionStorage.setItem('openCategories', JSON.stringify([...expandedCategories]));
+            } catch (e) { }
         }
     }
 }
@@ -282,6 +321,21 @@ function initTabs() {
     const tabs = document.querySelectorAll('.tab');
     const contents = document.querySelectorAll('.tab-content');
 
+    // Restore previously active tab from sessionStorage if available
+    try {
+        const savedTabTarget = sessionStorage.getItem('activeOptionsTab');
+        if (savedTabTarget && document.getElementById(savedTabTarget)) {
+            tabs.forEach(t => {
+                if (t.dataset.target === savedTabTarget) t.classList.add('active');
+                else t.classList.remove('active');
+            });
+            contents.forEach(c => {
+                if (c.id === savedTabTarget) c.classList.add('active');
+                else c.classList.remove('active');
+            });
+        }
+    } catch (e) { }
+
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             tabs.forEach(t => t.classList.remove('active'));
@@ -289,6 +343,9 @@ function initTabs() {
 
             tab.classList.add('active');
             document.getElementById(tab.dataset.target).classList.add('active');
+            try {
+                sessionStorage.setItem('activeOptionsTab', tab.dataset.target);
+            } catch (e) { }
         });
     });
 }
@@ -492,10 +549,15 @@ function formatDateTime(isoString) {
 // --- RENDER TRACKED ITEMS ---
 async function renderTrackedItems() {
     const container = document.getElementById('trackedItemsList');
+    if (!container) return;
+
+    // 1. Capture current scroll position and open categories before DOM updates
+    const currentOpenCats = getCurrentlyOpenCategories();
+    const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    const containerScrollTop = container.scrollTop || 0;
+
     const data = await chrome.storage.local.get('trackingData');
     const trackingData = data.trackingData || {};
-
-    container.innerHTML = '';
 
     // Populate category dropdown with existing categories
     const catSelect = document.getElementById('catSelect');
@@ -520,10 +582,14 @@ async function renderTrackedItems() {
             catSelect.appendChild(option);
         });
 
-        if (currentValue && currentValue !== '__NEW__' && uniqueCategories.has(currentValue)) {
-            catSelect.value = currentValue;
+        if (currentValue) {
+            if (currentValue === '__NEW__' || uniqueCategories.has(currentValue)) {
+                catSelect.value = currentValue;
+            }
         }
     }
+
+    container.innerHTML = '';
 
     if (Object.keys(trackingData).length === 0) {
         container.innerHTML = `<p style="color: #666;">${t("no_items")}</p>`;
@@ -533,6 +599,9 @@ async function renderTrackedItems() {
     // Iterate over categories
     for (const [catKey, catData] of Object.entries(trackingData)) {
         if (catData.items.length === 0) continue;
+
+        const isExpanded = currentOpenCats.has(catKey);
+        const arrowIcon = isExpanded ? '▴' : '▾';
 
         const catBlock = document.createElement('div');
         catBlock.className = 'category-block';
@@ -576,7 +645,7 @@ async function renderTrackedItems() {
                 <span style="font-size: 16px; white-space: nowrap;">📁 <b>${escapeHtml(catData.categoryName)}</b></span>
                 ${catPriceSummary}
                 ${unreadBadge}
-                <span class="arrow-icon">▾</span>
+                <span class="arrow-icon">${arrowIcon}</span>
             </div>
             <div style="display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; margin-left: 10px;">
                 <button class="success btn-cat-refresh" data-catkey="${escapeHtml(catKey)}">${t("refresh_btn")}</button>
@@ -586,10 +655,10 @@ async function renderTrackedItems() {
         `;
         catBlock.appendChild(header);
 
-        // Category Items Container (collapsed by default)
+        // Category Items Container (preserves open state)
         const itemsContainer = document.createElement('div');
         itemsContainer.id = `items_${catKey}`;
-        itemsContainer.style.display = 'none';
+        itemsContainer.style.display = isExpanded ? 'block' : 'none';
 
         // Iterate over products in category
         catData.items.forEach(item => {
@@ -712,6 +781,14 @@ async function renderTrackedItems() {
         catBlock.appendChild(itemsContainer);
         container.appendChild(catBlock);
     }
+
+    // 2. Seamlessly restore scroll positions
+    if (scrollY > 0) {
+        window.scrollTo({ top: scrollY, behavior: 'instant' });
+    }
+    if (container && containerScrollTop > 0) {
+        container.scrollTop = containerScrollTop;
+    }
 }
 
 // --- DELETION HELPERS (Globally accessible) ---
@@ -777,10 +854,14 @@ async function loadSettings() {
 }
 
 async function saveSettings() {
+    const data = await chrome.storage.local.get('settings');
+    const prevLang = data.settings?.language || 'en';
+    const newLang = document.getElementById('settingLanguage') ? document.getElementById('settingLanguage').value : 'en';
+
     const settings = {
         notificationsEnabled: document.getElementById('settingNotif').checked,
         notificationSound: document.getElementById('settingSound').checked,
-        language: document.getElementById('settingLanguage') ? document.getElementById('settingLanguage').value : 'en'
+        language: newLang
     };
     const themePreference = document.getElementById('settingTheme').value;
 
@@ -791,7 +872,11 @@ async function saveSettings() {
     else if (themePreference === 'light') document.documentElement.classList.add('theme-light');
 
     alert(t("settings_saved"));
-    window.location.reload(); // Reload to apply language immediately
+
+    // ONLY reload if language actually changed
+    if (newLang !== prevLang) {
+        window.location.reload();
+    }
 }
 
 // --- DATA EXPORT (Selective) ---
@@ -1391,6 +1476,13 @@ function getItemTrend(item) {
 
 // --- EDIT ITEM MODAL LOGIC ---
 window.openEditItemModal = async function (catKey, itemId) {
+    if (catKey) {
+        expandedCategories.add(catKey);
+        try {
+            sessionStorage.setItem('openCategories', JSON.stringify([...expandedCategories]));
+        } catch (e) { }
+    }
+
     const data = await chrome.storage.local.get('trackingData');
     const trackingData = data.trackingData || {};
     const item = trackingData[catKey]?.items.find(i => i.id === itemId);
@@ -1477,6 +1569,13 @@ document.getElementById('saveEditItemBtn').addEventListener('click', async () =>
         trackingData[catKey].items[itemIndex].intervalJitter = newJitter;
         trackingData[catKey].items[itemIndex].requiresMacro = newMacro;
         trackingData[catKey].items[itemIndex].useLowestPrice = newUseLowest;
+
+        if (catKey) {
+            expandedCategories.add(catKey);
+            try {
+                sessionStorage.setItem('openCategories', JSON.stringify([...expandedCategories]));
+            } catch (e) { }
+        }
 
         await chrome.storage.local.set({ trackingData });
 

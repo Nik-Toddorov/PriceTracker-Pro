@@ -31,21 +31,120 @@ function findItemAndCategory(trackingData, itemId) {
   return { item: null, categoryKey: null };
 }
 
-// Helper function to safely close a tab
+// Helper function to safely close a tab with verification and retry
 async function safeRemoveTab(tabId) {
   if (!tabId) return;
   try {
-    await chrome.tabs.remove(tabId);
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
+    if (tab) {
+      await chrome.tabs.remove(tabId);
+    }
   } catch (e) {
-    // Ignore error if tab was already closed manually by user
+    // If tab cannot be edited immediately (e.g. user dragging tabs or browser busy), retry once briefly
+    try {
+      await new Promise(r => setTimeout(r, 400));
+      const retryTab = await chrome.tabs.get(tabId).catch(() => null);
+      if (retryTab) {
+        await chrome.tabs.remove(tabId);
+      }
+    } catch (retryErr) {
+      // Tab may have already been closed manually
+    }
+  }
+}
+
+// Registry for active scraping tabs to ensure orphan cleanup across service worker restarts
+async function registerScrapingTab(tabId, itemId, url) {
+  if (!tabId) return;
+  try {
+    const data = await chrome.storage.local.get(['activeScrapingTabs']);
+    const tabs = data.activeScrapingTabs || {};
+    tabs[tabId] = {
+      itemId,
+      url,
+      openedAt: Date.now()
+    };
+    await chrome.storage.local.set({ activeScrapingTabs: tabs });
+  } catch (e) {
+    console.warn("Error registering scraping tab:", e);
+  }
+}
+
+async function unregisterScrapingTab(tabId) {
+  if (!tabId) return;
+  try {
+    const data = await chrome.storage.local.get(['activeScrapingTabs']);
+    const tabs = data.activeScrapingTabs || {};
+    if (tabs[tabId]) {
+      delete tabs[tabId];
+      await chrome.storage.local.set({ activeScrapingTabs: tabs });
+    }
+  } catch (e) {
+    console.warn("Error unregistering scraping tab:", e);
+  }
+}
+
+// Garbage collector for orphaned scraping tabs older than 45 seconds or lingering after worker restart
+async function cleanOrphanedScrapingTabs() {
+  try {
+    const data = await chrome.storage.local.get(['activeScrapingTabs']);
+    const tabs = data.activeScrapingTabs || {};
+    const now = Date.now();
+    let hasChanges = false;
+
+    for (const tabIdStr in tabs) {
+      const tabId = parseInt(tabIdStr, 10);
+      const info = tabs[tabIdStr];
+      const ageMs = now - (info.openedAt || 0);
+
+      // If tab was opened more than 45 seconds ago, or if service worker restarted without it in activeScrapes
+      if (ageMs > 45 * 1000 || !activeScrapes.has(tabId)) {
+        console.log(`[Cleaner] Closing orphaned background scrape tab ${tabId} (item: ${info?.itemId}, age: ${Math.round(ageMs/1000)}s).`);
+        await safeRemoveTab(tabId);
+        delete tabs[tabIdStr];
+        hasChanges = true;
+      }
+    }
+
+    if (hasChanges) {
+      await chrome.storage.local.set({ activeScrapingTabs: tabs });
+    }
+  } catch (e) {
+    console.warn("Error cleaning orphaned scraping tabs:", e);
+  }
+}
+
+// Keep-Alive mechanism to prevent Manifest V3 Service Worker idle termination while scraping is active
+let scrapeKeepAliveInterval = null;
+
+function ensureScrapeKeepAlive() {
+  if (!scrapeKeepAliveInterval) {
+    scrapeKeepAliveInterval = setInterval(() => {
+      if (activeScrapes.size === 0) {
+        clearInterval(scrapeKeepAliveInterval);
+        scrapeKeepAliveInterval = null;
+        return;
+      }
+      // Calling chrome.runtime.getPlatformInfo() resets Chrome's 30s idle timer in MV3
+      chrome.runtime.getPlatformInfo(() => {});
+    }, 12000);
+  }
+}
+
+function stopScrapeKeepAlive() {
+  if (activeScrapes.size === 0 && scrapeKeepAliveInterval) {
+    clearInterval(scrapeKeepAliveInterval);
+    scrapeKeepAliveInterval = null;
   }
 }
 
 // Listener for tabs closed during scraping tasks
 chrome.tabs.onRemoved.addListener(async (tabId) => {
+  await unregisterScrapingTab(tabId);
   if (activeScrapes.has(tabId)) {
     const scrapeContext = activeScrapes.get(tabId);
     activeScrapes.delete(tabId);
+    stopScrapeKeepAlive();
     if (scrapeContext.cleanup) scrapeContext.cleanup();
     if (!scrapeContext.completed) {
       scrapeContext.completed = true;
@@ -58,6 +157,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 // 1. ALARM LISTENER
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   await initLang();
+  await cleanOrphanedScrapingTabs();
 
   if (alarm.name === QUEUE_ALARM_NAME) {
     await runNextItemFromQueue();
@@ -181,7 +281,18 @@ async function runNextItemFromQueue() {
 function executeScrape(itemId) {
   return new Promise(async (resolve) => {
     let isResolved = false;
-    const safeResolve = () => {
+    let safetyTimeoutId = null;
+    let tab = null;
+
+    const safeResolve = async () => {
+      if (safetyTimeoutId) {
+        clearTimeout(safetyTimeoutId);
+        safetyTimeoutId = null;
+      }
+      stopScrapeKeepAlive();
+      if (tab && tab.id) {
+        await unregisterScrapingTab(tab.id);
+      }
       if (!isResolved) {
         isResolved = true;
         resolve();
@@ -200,7 +311,6 @@ function executeScrape(itemId) {
     }
 
     // Open inactive background tab so it doesn't interrupt the user
-    let tab;
     try {
       tab = await chrome.tabs.create({ url: targetItem.url, active: false });
     } catch (e) {
@@ -209,29 +319,41 @@ function executeScrape(itemId) {
       return safeResolve();
     }
 
+    // Register active scraping tab for persistent tracking & orphan cleanup
+    await registerScrapingTab(tab.id, targetItem.id, targetItem.url);
+
     let executed = false;
     let fallbackTimeoutId = null;
-    let safetyTimeoutId = null;
 
-    const cleanupListeners = () => {
+    const cleanupPageListeners = () => {
       chrome.tabs.onUpdated.removeListener(listener);
-      if (fallbackTimeoutId) clearTimeout(fallbackTimeoutId);
-      if (safetyTimeoutId) clearTimeout(safetyTimeoutId);
+      if (fallbackTimeoutId) {
+        clearTimeout(fallbackTimeoutId);
+        fallbackTimeoutId = null;
+      }
     };
 
     const scrapeContext = { 
+      tabId: tab.id,
       itemId: targetItem.id, 
       targetItem, 
       completed: false,
-      cleanup: cleanupListeners,
+      cleanup: () => {
+        cleanupPageListeners();
+        if (safetyTimeoutId) {
+          clearTimeout(safetyTimeoutId);
+          safetyTimeoutId = null;
+        }
+      },
       resolve: safeResolve
     };
     activeScrapes.set(tab.id, scrapeContext);
+    ensureScrapeKeepAlive();
     
     const injectAndStart = async () => {
       if (executed) return;
       executed = true;
-      cleanupListeners();
+      cleanupPageListeners();
       try {
         await chrome.scripting.executeScript({
           target: { tabId: tab.id },
@@ -249,7 +371,7 @@ function executeScrape(itemId) {
           await processScrapeError(targetItem, err?.message || "Failed to inject content script");
         }
         await safeRemoveTab(tab.id);
-        safeResolve();
+        await safeResolve();
       }
     };
 
@@ -271,16 +393,18 @@ function executeScrape(itemId) {
       injectAndStart();
     }, 6000);
 
-    // Safety timeout to close tab and log error if unresponsive
+    // Safety timeout (45s) to close tab and log error if unresponsive - DOES NOT get cleared on injection!
     safetyTimeoutId = setTimeout(async () => {
+      console.warn(`Safety timeout (45s) triggered for tab ${tab.id} (item ${targetItem.id}). Closing tab.`);
       if (!scrapeContext.completed) {
         scrapeContext.completed = true;
         activeScrapes.delete(tab.id);
-        await processScrapeError(targetItem, "Timeout (35s) or tab unresponsive");
+        await processScrapeError(targetItem, "Timeout (45s) or tab unresponsive");
       }
+      cleanupPageListeners();
       await safeRemoveTab(tab.id);
-      safeResolve();
-    }, 35000);
+      await safeResolve();
+    }, 45000);
 
     // Schedule next check with jitter for natural browsing simulation
     scheduleNextCheck(targetItem);
@@ -479,14 +603,17 @@ async function setupContextMenus() {
 
 chrome.runtime.onInstalled.addListener(() => {
     setupContextMenus();
+    cleanOrphanedScrapingTabs();
     checkOverdueItems();
 });
 
 chrome.runtime.onStartup.addListener(() => {
+    cleanOrphanedScrapingTabs();
     checkOverdueItems();
 });
 
-// Check for overdue items on service worker wake-up
+// Clean orphaned tabs and check for overdue items on service worker wake-up
+cleanOrphanedScrapingTabs();
 checkOverdueItems();
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
@@ -571,37 +698,89 @@ function sendMessagePromise(tabId, message) {
 // 11. CENTRAL MESSAGE DISPATCHER
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === "scrape_result") {
-        let resolveFunc = null;
-        if (sender.tab && activeScrapes.has(sender.tab.id)) {
-            const ctx = activeScrapes.get(sender.tab.id);
-            ctx.completed = true;
-            if (ctx.cleanup) ctx.cleanup();
-            if (ctx.resolve) resolveFunc = ctx.resolve;
-            activeScrapes.delete(sender.tab.id);
-        }
-        processScrapeResult(message.itemConfig, message.value, message.timestamp, message.currency);
-        if (sender.tab) {
-            safeRemoveTab(sender.tab.id);
-        }
-        if (resolveFunc) resolveFunc();
-        sendResponse({ status: "ok" });
+        (async () => {
+            let resolveFunc = null;
+            const targetTabId = sender?.tab?.id;
+            let ctx = null;
+
+            if (targetTabId && activeScrapes.has(targetTabId)) {
+                ctx = activeScrapes.get(targetTabId);
+            } else if (message.itemConfig?.id) {
+                for (const [, c] of activeScrapes.entries()) {
+                    if (c.itemId === message.itemConfig.id) {
+                        ctx = c;
+                        break;
+                    }
+                }
+            }
+
+            if (ctx) {
+                ctx.completed = true;
+                if (ctx.cleanup) ctx.cleanup();
+                if (ctx.resolve) resolveFunc = ctx.resolve;
+                if (ctx.tabId) activeScrapes.delete(ctx.tabId);
+            }
+            if (targetTabId) activeScrapes.delete(targetTabId);
+            stopScrapeKeepAlive();
+
+            try {
+                await processScrapeResult(message.itemConfig, message.value, message.timestamp, message.currency);
+            } catch (err) {
+                console.error("Error processing scrape result:", err);
+            }
+
+            const tabToClose = targetTabId || ctx?.tabId;
+            if (tabToClose) {
+                await safeRemoveTab(tabToClose);
+                await unregisterScrapingTab(tabToClose);
+            }
+
+            if (resolveFunc) await resolveFunc();
+            sendResponse({ status: "ok" });
+        })();
         return true;
     } else if (message.action === "scrape_error") {
-        let resolveFunc = null;
-        if (sender.tab && activeScrapes.has(sender.tab.id)) {
-            const ctx = activeScrapes.get(sender.tab.id);
-            ctx.completed = true;
-            if (ctx.cleanup) ctx.cleanup();
-            if (ctx.resolve) resolveFunc = ctx.resolve;
-            activeScrapes.delete(sender.tab.id);
-        }
-        console.error(`Scraping error for ${message.itemConfig.id}:`, message.error);
-        processScrapeError(message.itemConfig, message.error);
-        if (sender.tab) {
-            safeRemoveTab(sender.tab.id);
-        }
-        if (resolveFunc) resolveFunc();
-        sendResponse({ status: "error_handled" });
+        (async () => {
+            let resolveFunc = null;
+            const targetTabId = sender?.tab?.id;
+            let ctx = null;
+
+            if (targetTabId && activeScrapes.has(targetTabId)) {
+                ctx = activeScrapes.get(targetTabId);
+            } else if (message.itemConfig?.id) {
+                for (const [, c] of activeScrapes.entries()) {
+                    if (c.itemId === message.itemConfig.id) {
+                        ctx = c;
+                        break;
+                    }
+                }
+            }
+
+            if (ctx) {
+                ctx.completed = true;
+                if (ctx.cleanup) ctx.cleanup();
+                if (ctx.resolve) resolveFunc = ctx.resolve;
+                if (ctx.tabId) activeScrapes.delete(ctx.tabId);
+            }
+            if (targetTabId) activeScrapes.delete(targetTabId);
+            stopScrapeKeepAlive();
+
+            console.error(`Scraping error for ${message.itemConfig?.id}:`, message.error);
+            try {
+                await processScrapeError(message.itemConfig, message.error);
+            } catch (err) {
+                console.error("Error processing scrape error:", err);
+            }
+
+            const tabToClose = targetTabId || ctx?.tabId;
+            if (tabToClose) {
+                await safeRemoveTab(tabToClose);
+                await unregisterScrapingTab(tabToClose);
+            }
+
+            if (resolveFunc) await resolveFunc();
+            sendResponse({ status: "error_handled" });
+        })();
         return true;
     } else if (message.action === "force_refresh_all") {
         forceRefreshAllItems();

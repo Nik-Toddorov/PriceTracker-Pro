@@ -145,9 +145,105 @@ function parsePriceStringToNumber(targetText) {
 }
 
 /**
+ * Normalizes raw currency string into standard representation.
+ */
+function normalizeCurrency(rawCurr) {
+    if (!rawCurr) return '€';
+    const c = rawCurr.trim().toUpperCase();
+    if (c === '€' || c === 'EUR') return '€';
+    if (c.includes('ЛВ') || c === 'BGN') return 'лв.';
+    if (c === '$' || c === 'USD') return '$';
+    if (c === '£' || c === 'GBP') return '£';
+    if (c.includes('LEI') || c === 'RON') return 'Lei';
+    if (c.includes('ZŁ') || c === 'PLN') return 'zł';
+    if (c === 'CHF') return 'CHF';
+    return rawCurr.trim();
+}
+
+/**
+ * Removes non-price noise phrases (durations, delivery days, warranty, quantities, percentages, disclaimers).
+ */
+function sanitizePriceText(text) {
+    if (!text) return '';
+    let s = ' ' + String(text).replace(/\u00a0/g, ' ') + ' ';
+
+    // 1. Filter delivery expressions: e.g. "Доставка от 4 до 5 дни", "Доставка за 24-48 часа", "delivery in 3-5 days"
+    s = s.replace(/(?:доставка|delivery|shipping|versand|expediere)\s*(?:от|за|в|до|within|in)?\s*[^€$лв£\n]{0,40}/gi, ' ');
+
+    // 2. Filter range expressions: e.g. "от 4 до 5 дни", "4-5 дни", "24-48 часа", "1 to 3 days"
+    s = s.replace(/(?:^|[^\d])\d+\s*(?:до|-|to)\s*\d+\s*(?:дни|дена|days?|ч|часа|час|hours?|hrs?|работни\s+дни|business\s+days)(?=[^\p{L}\p{N}]|$)/gui, ' ');
+
+    // 3. Filter duration & time numbers: e.g. "30 дни", "14 days", "2 години", "24 месеца", "48 часа"
+    s = s.replace(/(?:^|[^\d])\d+\s*(?:дни|дена|ден|days?|d|ч|часа|час|ч\.|hours?|hrs?|h|г|год|години|година|г\.|years?|yrs?|y|мес|месеца|месец|months?|mo|седмици|седмица|weeks?|мин|минути|mins?|minutes?)(?=[^\p{L}\p{N}]|$)/gui, ' ');
+
+    // 4. Filter quantities & packaging units: e.g. "1 бр.", "2 броя", "100 ml", "500 g", "1 кг", "2 pcs"
+    s = s.replace(/(?:^|[^\d])\d+\s*(?:бр|бр\.|броя|бройки|пакет\w*|pcs?|pieces?|units?|items?|кг|kg|g|гр|ml|мл|l|л|cm|см|mm|мм|m|м)(?=[^\p{L}\p{N}]|$)/gui, ' ');
+
+    // 5. Filter percentages and savings badges: e.g. "-20%", "20 %", "спестявате 50 лв", "you save $50"
+    // (Never delete "отстъпка" or "discount" because "цена с отстъпка" is the actual selling price!)
+    s = s.replace(/[-+–]?\s*\d+(?:[.,]\d+)?\s*%/g, ' ');
+    s = s.replace(/(?:спестява\w*|спестете|разлика|you\s+save)\s*[^€$лв£\n]{0,25}/gi, ' ');
+
+    // 6. Filter stock status: e.g. "На склад", "In stock", "В наличност"
+    s = s.replace(/(?:на\s+склад|в\s+наличност|in\s+stock|out\s+of\s+stock)/gi, ' ');
+
+    return s.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Extracts all explicit price tokens with currencies from a text block.
+ */
+function extractPriceTokensWithCurrency(text) {
+    if (!text) return [];
+    const sanitized = sanitizePriceText(text);
+    const tokens = [];
+    const seenNumbers = new Set();
+
+    const currSymbols = '€|EUR|лв\\.?|BGN|\\$|USD|£|GBP|Lei|lei|RON|zł|PLN|CHF';
+
+    // Regex 1: Number followed by currency (e.g. 549,99 € or 1 250,00 лв.)
+    const regexNumFirst = new RegExp(`(?:^|[^\\w.,])(\\d{1,3}(?:[ .]\\d{3})*(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)\\s*(${currSymbols})(?=[^\\w]|$)`, 'gi');
+    let m;
+    while ((m = regexNumFirst.exec(sanitized)) !== null) {
+        const num = parsePriceStringToNumber(m[1]);
+        if (num !== null && num > 0 && !seenNumbers.has(num)) {
+            seenNumbers.add(num);
+            const prefix = sanitized.substring(Math.max(0, m.index - 25), m.index).toLowerCase();
+            const isRef = /пцд|msrp|rrp|uvp|препоръчителна|първоначална|стара|old|regular/i.test(prefix);
+            tokens.push({
+                value: num,
+                currency: normalizeCurrency(m[2]),
+                rawMatch: m[0].trim(),
+                isReference: isRef
+            });
+        }
+    }
+
+    // Regex 2: Currency followed by number (e.g. € 549,99 or $1,250.99)
+    const regexCurrFirst = new RegExp(`(?:^|[^\\w.,€$£])(${currSymbols})\\s*(\\d{1,3}(?:[ ,]\\d{3})*(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)(?=[^\\w.,]|$)`, 'gi');
+    while ((m = regexCurrFirst.exec(sanitized)) !== null) {
+        const num = parsePriceStringToNumber(m[2]);
+        if (num !== null && num > 0 && !seenNumbers.has(num)) {
+            seenNumbers.add(num);
+            const prefix = sanitized.substring(Math.max(0, m.index - 25), m.index).toLowerCase();
+            const isRef = /пцд|msrp|rrp|uvp|препоръчителна|първоначална|стара|old|regular/i.test(prefix);
+            tokens.push({
+                value: num,
+                currency: normalizeCurrency(m[1]),
+                rawMatch: m[0].trim(),
+                isReference: isRef
+            });
+        }
+    }
+
+    return tokens;
+}
+
+/**
  * Intelligently extracts all valid full prices from an element and its subtree/hierarchy.
- * Prevents cents fragmentation and truncated integer confusion (e.g. 687.64 € is not overridden by 687).
- * Ignores savings, price differences, and discount percentages (e.g. "Save 39.60 €", "-20%").
+ * Prioritizes active/promotional price classes, suppresses strikethrough/old prices and MSRPs,
+ * completely eliminates duration/delivery noise (e.g. 30 days, 4-5 delivery days),
+ * and avoids cents fragmentation.
  */
 function extractPricesFromElement(element, useLowestPrice = true) {
     if (!element) return { value: null, currency: '€' };
@@ -184,102 +280,243 @@ function extractPricesFromElement(element, useLowestPrice = true) {
         }
     }
 
-    // Detect currency symbol or abbreviation
-    const fullTextForCurrency = (targetEl.innerText || targetEl.textContent || '').replace(/\u00a0/g, ' ').trim();
-    let currency = '€';
-    if (fullTextForCurrency.includes('лв') || fullTextForCurrency.includes('BGN')) currency = 'лв.';
-    else if (fullTextForCurrency.includes('$')) currency = '$';
-    else if (fullTextForCurrency.includes('£')) currency = '£';
-    else if (fullTextForCurrency.includes('lei') || fullTextForCurrency.includes('Lei') || fullTextForCurrency.includes('RON')) currency = 'Lei';
-    else if (fullTextForCurrency.includes('€') || fullTextForCurrency.includes('EUR')) currency = '€';
+    // Detect general currency symbol or abbreviation from element text
+    const containerText = (targetEl.innerText || targetEl.textContent || '').replace(/\u00a0/g, ' ').trim();
+    let defaultCurrency = '€';
+    if (containerText.includes('лв') || containerText.includes('BGN')) defaultCurrency = 'лв.';
+    else if (containerText.includes('$')) defaultCurrency = '$';
+    else if (containerText.includes('£')) defaultCurrency = '£';
+    else if (containerText.includes('lei') || containerText.includes('Lei') || containerText.includes('RON')) defaultCurrency = 'Lei';
+    else if (containerText.includes('zł') || containerText.includes('PLN')) defaultCurrency = 'zł';
+    else if (containerText.includes('CHF')) defaultCurrency = 'CHF';
 
-    // 1. Try parsing full element text directly first (unified whole container)
-    let wholeContainerNum = null;
-    if (fullTextForCurrency) {
-        const lines = fullTextForCurrency.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
-        const filteredLines = lines.filter(line => {
-            const lower = line.toLowerCase();
-            return !lower.includes('спестява') && 
-                   !lower.includes('разлика') && 
-                   !lower.includes('отстъпка') && 
-                   !lower.includes('save') && 
-                   !lower.includes('discount') &&
-                   !lower.includes('diff') &&
-                   !lower.includes('%');
-        });
+    // Classification helpers
+    const activePriceSelector = '[class*="discounted-price"], [class*="product-new-price"], [class*="current-price"], [class*="price-current"], [class*="price-promo"], [class*="promo-price"], [class*="sale-price"], [class*="special-price"], [class*="brand--h2"], [class*="main-price"], [class*="final-price"], [itemprop="price"]';
 
-        const targetSource = filteredLines.length > 0 ? filteredLines.join(' ') : fullTextForCurrency;
-        wholeContainerNum = parsePriceStringToNumber(targetSource);
-    }
+    const isActivePriceEl = (el) => {
+        if (!el) return false;
+        const cls = (el.className && typeof el.className === 'string' ? el.className : '').toLowerCase();
+        return cls.includes('discounted-price') ||
+               cls.includes('product-new-price') ||
+               cls.includes('current-price') ||
+               cls.includes('price-current') ||
+               cls.includes('price-promo') ||
+               cls.includes('promo-price') ||
+               cls.includes('sale-price') ||
+               cls.includes('special-price') ||
+               cls.includes('brand--h2') ||
+               cls.includes('main-price') ||
+               cls.includes('final-price') ||
+               (el.getAttribute && el.getAttribute('itemprop') === 'price');
+    };
 
-    // 2. Discover all price candidates in the subtree/hierarchy
-    const candidateNumbers = [];
-    if (wholeContainerNum !== null) {
-        candidateNumbers.push(wholeContainerNum);
-    }
+    const isOldPriceEl = (el) => {
+        if (!el) return false;
+        const cls = (el.className && typeof el.className === 'string' ? el.className : '').toLowerCase();
+        const tag = (el.tagName || '').toLowerCase();
+        if (tag === 'del' || tag === 's' || tag === 'strike') return true;
+        if (cls.includes('price-through') ||
+            cls.includes('line-through') ||
+            cls.includes('old-price') ||
+            cls.includes('old_price') ||
+            cls.includes('regular-price') ||
+            cls.includes('original-price') ||
+            cls.includes('was-price') ||
+            cls.includes('former-price') ||
+            cls.includes('before-discount')) {
+            return true;
+        }
+        try {
+            if (window.getComputedStyle) {
+                const style = window.getComputedStyle(el);
+                if (style && style.textDecorationLine && style.textDecorationLine.includes('line-through')) {
+                    return true;
+                }
+            }
+        } catch (e) {}
+        return false;
+    };
 
-    // Traverse child nodes to catch sub-elements, discounts, and promotional tags
+    const isSavingsOrDifferenceEl = (el) => {
+        if (!el) return false;
+        const cls = (el.className && typeof el.className === 'string' ? el.className : '').toLowerCase();
+        const id = (el.getAttribute && el.getAttribute('id') ? el.getAttribute('id') : '').toLowerCase();
+        const check = (s) => (
+            s.includes('you-save') || s.includes('you_save') || s.includes('yousave') ||
+            s.includes('saving') || s.includes('price-diff') || s.includes('pricediff') ||
+            s.includes('razlika') || s.includes('discount-amount') || s.includes('save-amount') ||
+            s.includes('save-price') || s.includes('discount-value')
+        );
+        if (check(cls) || check(id)) return true;
+        if (el.closest && el.closest('[class*="you-save"], [class*="you_save"], [class*="yousave"], [class*="saving"], [class*="price-diff"], [class*="pricediff"], [class*="razlika"], [class*="discount-amount"], [class*="save-amount"], [class*="save-price"], [class*="discount-value"], [id*="you-save"], [id*="razlika"]')) {
+            return true;
+        }
+        let curr = el;
+        for (let d = 0; d < 3 && curr && curr !== targetEl; d++) {
+            const text = (curr.innerText || curr.textContent || '').trim();
+            if (/^(?:разлика|спестява\w*|спестете|you\s*save|save\s+amount)\b/i.test(text)) {
+                return true;
+            }
+            curr = curr.parentElement;
+        }
+        return false;
+    };
+
+    const isNoiseEl = (el) => {
+        if (!el) return false;
+        const cls = (el.className && typeof el.className === 'string' ? el.className : '').toLowerCase();
+        const tag = (el.tagName || '').toLowerCase();
+        return tag.includes('converted') ||
+               cls.includes('converted') ||
+               cls.includes('double-c') ||
+               cls.includes('delivery') ||
+               cls.includes('shipping') ||
+               cls.includes('warranty') ||
+               cls.includes('stock') ||
+               cls.includes('installments') ||
+               cls.includes('leasing');
+    };
+
+    // Collect all descendants
     const allDescendants = [targetEl, ...targetEl.querySelectorAll('*')];
+    const candidates = [];
+
     for (const el of allDescendants) {
-        // Skip hidden or script elements
         if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'NOSCRIPT') continue;
 
-        // Skip discount difference / savings badges
-        const elText = (el.innerText || el.textContent || '').replace(/\u00a0/g, ' ').trim();
-        if (!elText) continue;
+        const rawText = (el.innerText || el.textContent || '').replace(/\u00a0/g, ' ').trim();
+        if (!rawText) continue;
 
-        const lower = elText.toLowerCase();
-        if (lower.includes('спестява') || lower.includes('разлика') || lower.includes('отстъпка') ||
-            lower.includes('save') || lower.includes('discount') || lower.includes('%')) {
-            continue;
+        const isSavings = isSavingsOrDifferenceEl(el);
+        const isOld = isOldPriceEl(el) || (el.closest && isOldPriceEl(el.closest('del, s, strike, [class*="price-through"], [class*="old-price"]')));
+        const isActive = (isActivePriceEl(el) || (el.closest && el.closest(activePriceSelector))) && !isOld && !isSavings;
+        const isNoise = isNoiseEl(el);
+
+        // 1. Extract tokens with explicit currency
+        const tokens = extractPriceTokensWithCurrency(rawText);
+        for (const token of tokens) {
+            candidates.push({
+                value: token.value,
+                currency: token.currency || defaultCurrency,
+                isActive: isActive,
+                isOld: isOld,
+                isSavings: isSavings,
+                isReference: token.isReference,
+                isNoise: isNoise
+            });
         }
 
-        // If the element has direct text content or is a price wrapper
-        const parsed = parsePriceStringToNumber(elText);
-        if (parsed !== null && parsed > 0) {
-            if (!candidateNumbers.includes(parsed)) {
-                candidateNumbers.push(parsed);
+        // 2. If element is a pure price leaf element (e.g. <span class="brand--h2">549,99</span>)
+        if (tokens.length === 0 && (isActive || !isNoise)) {
+            const trimmed = rawText.trim();
+            // Reject fragments starting with comma or dot (e.g. ",85 €" or ".99")
+            if (!trimmed.startsWith(',') && !trimmed.startsWith('.')) {
+                const sanitized = sanitizePriceText(rawText);
+                // Must be purely numeric string without letters (to avoid "30", "4 до 5", etc.)
+                if (sanitized && !/[a-zA-Z\u0400-\u04FF]/.test(sanitized)) {
+                    const parsed = parsePriceStringToNumber(sanitized);
+                    if (parsed !== null && parsed > 0) {
+                        candidates.push({
+                            value: parsed,
+                            currency: defaultCurrency,
+                            isActive: isActive,
+                            isOld: isOld,
+                            isSavings: isSavings,
+                            isReference: false,
+                            isNoise: isNoise
+                        });
+                    }
+                }
             }
         }
     }
 
-    if (candidateNumbers.length === 0) {
-        return { value: null, currency };
+    // Fallback: parse entire sanitized container text directly
+    if (candidates.length === 0) {
+        const containerTokens = extractPriceTokensWithCurrency(containerText);
+        for (const t of containerTokens) {
+            candidates.push({
+                value: t.value,
+                currency: t.currency || defaultCurrency,
+                isActive: false,
+                isOld: false,
+                isSavings: false,
+                isReference: t.isReference,
+                isNoise: false
+            });
+        }
     }
 
-    // Filter out partial fragments (both truncated integers and isolated decimal fractions)
-    // e.g. If candidates contain [687.64, 687, 64], 64 is decimal cents and 687 is truncated whole part of 687.64
-    const validPrices = candidateNumbers.filter(num => {
-        if (num < 1 && candidateNumbers.some(other => other >= 1)) return false;
+    if (candidates.length === 0) {
+        return { value: null, currency: defaultCurrency };
+    }
 
-        // Check if num is an incomplete fragment of any full float price in candidateNumbers
-        for (const full of candidateNumbers) {
-            if (full > num && (full % 1 !== 0)) {
-                // 1. Is num the integer/whole part of full? (e.g. 687 of 687.64)
-                if (Math.floor(full) === num) {
-                    return false;
+    // Deduplicate candidates by value
+    const uniqueCandidates = [];
+    const seenVals = new Set();
+    for (const c of candidates) {
+        if (!seenVals.has(c.value)) {
+            seenVals.add(c.value);
+            uniqueCandidates.push({ ...c });
+        } else {
+            // Upgrade existing candidate if this one has active classification
+            const existing = uniqueCandidates.find(x => x.value === c.value);
+            if (existing) {
+                if (c.isActive && !existing.isActive) existing.isActive = true;
+                if (c.isOld && !existing.isOld) existing.isOld = true;
+                if (c.isSavings && !existing.isSavings) existing.isSavings = true;
+                if (c.isReference && !existing.isReference) existing.isReference = true;
+            }
+        }
+    }
+
+    // Filter out candidates originating from noise or savings/difference elements
+    let pool = uniqueCandidates.filter(c => !c.isNoise && !c.isSavings);
+    if (pool.length === 0) pool = uniqueCandidates.filter(c => !c.isSavings);
+    if (pool.length === 0) pool = uniqueCandidates;
+
+    // Filter out cents fragmentation (e.g. 85, 0.85, or 118 when 118.85 exists)
+    pool = pool.filter(c => {
+        for (const other of pool) {
+            if (other.value > c.value && (other.value % 1 !== 0)) {
+                // Whole part match (e.g. 118 when 118.85 exists)
+                if (Math.floor(other.value) === c.value) return false;
+                // Integer cents match (e.g. 85 when 118.85 exists)
+                if (c.value <= 99 && c.value >= 1 && Number.isInteger(c.value)) {
+                    const cents = Math.round((other.value - Math.floor(other.value)) * 100);
+                    if (cents === c.value) return false;
                 }
-                // 2. Is num the cents/fraction part of full? (e.g. 64 of 687.64)
-                if (num <= 99 && num >= 1 && Number.isInteger(num)) {
-                    const cents = Math.round((full - Math.floor(full)) * 100);
-                    if (cents === num) {
-                        return false;
-                    }
-                }
+                // Fractional cents match (e.g. 0.85 when 118.85 exists)
+                const centsFrac = +(other.value - Math.floor(other.value)).toFixed(2);
+                if (Math.abs(centsFrac - c.value) < 0.001) return false;
             }
         }
         return true;
     });
 
-    const pricesToEvaluate = validPrices.length > 0 ? validPrices : candidateNumbers;
-
-    let finalValue = pricesToEvaluate[0];
-    if (useLowestPrice) {
-        // Select lowest price among valid full prices (e.g. promotional price)
-        finalValue = Math.min(...pricesToEvaluate);
+    // Strategy 1: If active / promotional price candidates exist, prioritize them
+    const activeCandidates = pool.filter(c => c.isActive && !c.isOld && !c.isReference);
+    if (activeCandidates.length > 0) {
+        const values = activeCandidates.map(c => c.value);
+        const finalVal = useLowestPrice ? Math.min(...values) : values[0];
+        const match = activeCandidates.find(c => c.value === finalVal);
+        return { value: finalVal, currency: match.currency, candidateCount: pool.length };
     }
 
-    return { value: finalValue, currency, candidateCount: candidateNumbers.length };
+    // Strategy 2: If regular non-old, non-reference prices exist, prioritize them
+    const regularCandidates = pool.filter(c => !c.isOld && !c.isReference);
+    if (regularCandidates.length > 0) {
+        const values = regularCandidates.map(c => c.value);
+        const finalVal = useLowestPrice ? Math.min(...values) : values[0];
+        const match = regularCandidates.find(c => c.value === finalVal);
+        return { value: finalVal, currency: match.currency, candidateCount: pool.length };
+    }
+
+    // Strategy 3: Fallback to old/reference prices if nothing else exists
+    const fallbackVals = pool.map(c => c.value);
+    const finalVal = useLowestPrice ? Math.min(...fallbackVals) : fallbackVals[0];
+    const match = pool.find(c => c.value === finalVal);
+    return { value: finalVal, currency: match ? match.currency : defaultCurrency, candidateCount: pool.length };
 }
 
 /**
@@ -321,6 +558,8 @@ function findTargetElement(selector, itemType = 'price') {
     // 3. eCommerce price selector fallbacks (if itemType === 'price')
     if (itemType === 'price') {
         const priceCandidates = [
+            'p.special-price',
+            '.special-price',
             'p.product-new-price',
             '.product-new-price',
             '.product-price',
@@ -335,6 +574,8 @@ function findTargetElement(selector, itemType = 'price') {
             '#priceblock_dealprice',
             '[itemprop="price"]',
             '[data-testid*="price"]',
+            '[class*="special-price"]',
+            '[class*="discounted-price"]',
             '[class*="product-new-price"]',
             '[class*="product-price"]',
             '[class*="price-new"]',
@@ -464,8 +705,22 @@ async function executeScrapingTask(config) {
             finalValue = rawText.trim();
         }
 
-        // 3. Send result back to background.js
-        chrome.runtime.sendMessage({
+        // 3. Send result back to background.js with retry
+        const sendScrapeMessage = (payload, retries = 2) => {
+            try {
+                chrome.runtime.sendMessage(payload, () => {
+                    if (chrome.runtime.lastError && retries > 0) {
+                        setTimeout(() => sendScrapeMessage(payload, retries - 1), 500);
+                    }
+                });
+            } catch (err) {
+                if (retries > 0) {
+                    setTimeout(() => sendScrapeMessage(payload, retries - 1), 500);
+                }
+            }
+        };
+
+        sendScrapeMessage({
             action: "scrape_result",
             itemConfig: config,
             value: finalValue,
@@ -475,7 +730,21 @@ async function executeScrapingTask(config) {
 
     } catch (error) {
         // Notify background service worker on error to log status and close tab
-        chrome.runtime.sendMessage({
+        const sendScrapeMessage = (payload, retries = 2) => {
+            try {
+                chrome.runtime.sendMessage(payload, () => {
+                    if (chrome.runtime.lastError && retries > 0) {
+                        setTimeout(() => sendScrapeMessage(payload, retries - 1), 500);
+                    }
+                });
+            } catch (err) {
+                if (retries > 0) {
+                    setTimeout(() => sendScrapeMessage(payload, retries - 1), 500);
+                }
+            }
+        };
+
+        sendScrapeMessage({
             action: "scrape_error",
             itemConfig: config,
             error: error.message

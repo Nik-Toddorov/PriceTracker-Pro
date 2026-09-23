@@ -1,0 +1,68 @@
+name: Build & Package PriceTracker Pro
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  validate-and-package:
+    name: Validate & Package Extension
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate Manifest JSON
+        run: |
+          node -e '
+            const manifest = require("./manifest.json");
+            console.log("Validating manifest.json...");
+            if (!manifest.name || !manifest.version || manifest.manifest_version !== 3) {
+              throw new Error("Invalid manifest configuration");
+            }
+            console.log(`Manifest valid: ${manifest.name} v${manifest.version}`);
+          '
+
+      - name: Syntax Check JavaScript Files
+        run: |
+          echo "Checking JavaScript syntax..."
+          node -c background.js content.js options.js picker.js popup.js offscreen.js i18n.js
+          echo "All JavaScript files passed syntax verification."
+
+      - name: Package Extension (Zip)
+        run: |
+          mkdir -p dist
+          zip -r dist/PriceTracker-Pro.zip . \
+            -x ".git/*" \
+            -x ".github/*" \
+            -x "dist/*" \
+            -x "*.md" \
+            -x ".gitignore" \
+            -x "LICENSE"
+          echo "Packaged extension size:"
+          ls -lh dist/PriceTracker-Pro.zip
+
+      - name: Upload Extension Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PriceTracker-Pro-Extension
+          path: dist/PriceTracker-Pro.zip
+          retention-days: 30
+
+      - name: Create GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/PriceTracker-Pro.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

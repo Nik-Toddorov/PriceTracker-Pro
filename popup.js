@@ -65,6 +65,29 @@ chrome.storage.local.get(['themePreference'], (data) => {
     else if (theme === 'light') document.documentElement.classList.add('theme-light');
 });
 
+// --- STATE PRESERVATION ---
+let expandedCategories = new Set();
+try {
+    const saved = JSON.parse(sessionStorage.getItem('popupExpandedCategories') || '[]');
+    if (Array.isArray(saved)) saved.forEach(k => expandedCategories.add(k));
+} catch (e) { }
+
+function getCurrentlyOpenCategories() {
+    const openSet = new Set(expandedCategories);
+    document.querySelectorAll('.category-block').forEach(block => {
+        const itemsDiv = block.querySelector('[id^="items_"]');
+        if (itemsDiv) {
+            const catKey = itemsDiv.id.replace('items_', '');
+            if (itemsDiv.style.display !== 'none') {
+                openSet.add(catKey);
+            } else {
+                openSet.delete(catKey);
+            }
+        }
+    });
+    return openSet;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     await initLang();
     applyTranslations();
@@ -94,10 +117,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('trackedItemsList').addEventListener('click', handleListClicks);
     document.getElementById('textHistoryContainer').addEventListener('click', handleListClicks);
 
+    let renderDebounceTimer = null;
+    function debouncedRender(delay = 200) {
+        if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
+        renderDebounceTimer = setTimeout(() => {
+            renderTrackedItems();
+        }, delay);
+    }
+
     // Auto re-render on storage changes
     chrome.storage.onChanged.addListener((changes, namespace) => {
         if (namespace === 'local' && changes.trackingData) {
-            renderTrackedItems();
+            debouncedRender(200);
         }
     });
 
@@ -123,6 +154,13 @@ function formatDateTime(isoString) {
 
 async function renderTrackedItems() {
     const container = document.getElementById('trackedItemsList');
+    if (!container) return;
+
+    // 1. Capture current scroll position and open categories
+    const currentOpenCats = getCurrentlyOpenCategories();
+    const containerScrollTop = container.scrollTop || 0;
+    const bodyScrollTop = document.documentElement.scrollTop || document.body.scrollTop || 0;
+
     const data = await chrome.storage.local.get('trackingData');
     const trackingData = data.trackingData || {};
 
@@ -135,6 +173,9 @@ async function renderTrackedItems() {
 
     for (const [catKey, catData] of Object.entries(trackingData)) {
         if (!catData || !Array.isArray(catData.items) || catData.items.length === 0) continue;
+
+        const isExpanded = currentOpenCats.has(catKey);
+        const arrowIcon = isExpanded ? '▴' : '▾';
 
         const catBlock = document.createElement('div');
         catBlock.className = 'category-block';
@@ -174,7 +215,7 @@ async function renderTrackedItems() {
                 <span>📁 <b>${escapeHtml(catData.categoryName)}</b></span>
                 ${catPriceSummary}
                 ${unreadBadge}
-                <span class="arrow-icon">▾</span>
+                <span class="arrow-icon">${arrowIcon}</span>
             </div>
             <div class="header-actions">
                 <button class="success btn-cat-refresh" data-catkey="${escapeHtml(catKey)}" title="${t("refresh_all_title")}">🔄</button>
@@ -185,7 +226,7 @@ async function renderTrackedItems() {
 
         const itemsContainer = document.createElement('div');
         itemsContainer.id = `items_${catKey}`;
-        itemsContainer.style.display = 'none';
+        itemsContainer.style.display = isExpanded ? 'block' : 'none';
 
         catData.items.forEach(item => {
             const row = document.createElement('div');
@@ -280,6 +321,14 @@ async function renderTrackedItems() {
         catBlock.appendChild(itemsContainer);
         container.appendChild(catBlock);
     }
+
+    // 2. Seamlessly restore scroll position
+    if (container && containerScrollTop > 0) {
+        container.scrollTop = containerScrollTop;
+    }
+    if (bodyScrollTop > 0) {
+        window.scrollTo({ top: bodyScrollTop, behavior: 'instant' });
+    }
 }
 
 async function handleListClicks(e) {
@@ -327,6 +376,14 @@ async function handleListClicks(e) {
             if (span) {
                 span.innerText = isHidden ? '▴' : '▾';
             }
+            if (isHidden) {
+                expandedCategories.add(catKey);
+            } else {
+                expandedCategories.delete(catKey);
+            }
+            try {
+                sessionStorage.setItem('popupExpandedCategories', JSON.stringify([...expandedCategories]));
+            } catch (e) { }
         }
     }
 }

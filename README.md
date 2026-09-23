@@ -19,9 +19,42 @@ PriceTracker Pro is a powerful browser extension (for Google Chrome, Microsoft E
 - **Google Drive Cloud Sync**: Secure backup and restore for all tracked items and preferences via the Google Drive AppData folder.
 - **Audio & Push Notifications**: Instant desktop and sound alerts when a price drop or text update is detected.
 - **Dark Mode & Multilingual**: Supports dark/light themes (Google Material 3 palette) and multiple languages (English and Bulgarian).
+- **Automated CI/CD & Packaging**: GitHub Actions workflow that validates manifest and syntax, packaging production-ready extension ZIP releases automatically.
 
 ## 📝 Changelog
 
+- **Fix & Optimization / Reliable Scraping Tab Closure & Orphan Garbage Collection**:
+  - **Preserved Safety Timeout Lifecycle**: Fixed an issue in `background.js` where `cleanupListeners()` cancelled `safetyTimeoutId` immediately upon script injection at 6 seconds, removing any timeout while the site was waiting for elements or running bot-evasion macros. The safety timeout now remains active throughout the entire scrape lifecycle (up to 45s) and reliably closes unresponsive, hanging, or redirected tabs.
+  - **Persistent Scraping Tab Registry (`activeScrapingTabs`)**: Added persistent tracking in `chrome.storage.local` for all background tabs opened for scraping with their IDs, item IDs, and timestamps.
+  - **Automated Orphan Garbage Collection**: On service worker startup (`onStartup`, `onInstalled`, top-level load) and on each alarm trigger (`onAlarm`), cleans up and closes any lingering tabs older than 45 seconds or orphaned by previous service worker restarts.
+  - **Manifest V3 Service Worker Keep-Alive**: Prevents Chrome from terminating the service worker during long element waiting or human simulation by executing a periodic lightweight ping (`chrome.runtime.getPlatformInfo`) while active scrapes are running.
+  - **Async Message Dispatcher & Awaited Tab Closure**: Updated `scrape_result` and `scrape_error` dispatchers in `chrome.runtime.onMessage` to be asynchronous, properly awaiting `safeRemoveTab(tabId)` and storage updates before invoking `sendResponse()`. Added retry logic with verification in `safeRemoveTab` and in `content.js` message sending.
+
+- **Fix & Optimization / No-Flicker State & Position Retention in Options & Popup**:
+  - **Persistent Open/Expanded Categories**: Both `options.js` and `popup.js` now track open category states (`expandedCategories`) in memory and `sessionStorage`. When a background price check or storage update completes, expanded categories remain open with their toggle arrows intact instead of collapsing to `display: none`.
+  - **Scroll Position Restoration**: Automatically saves and seamlessly restores window and container scroll positions upon DOM updates. The page and popup list no longer jump to the top when prices or settings update.
+  - **Eliminated Unnecessary Page Reloads**: Removed unconditional `window.location.reload()` from `saveSettings()`. The page only reloads when the language is explicitly switched; saving themes, notifications, or sounds applies instantly in-place without reloading or closing open items.
+  - **Tab State Persistence**: Retains the active dashboard tab (`activeOptionsTab`) in `sessionStorage` so navigating or refreshing never kicks the user out of their current workflow.
+  - **Debounced Storage Updates**: Debounced background `chrome.storage.onChanged` updates by 200–250ms to prevent rapid-fire re-rendering and UI stutter when multiple sites finish scraping concurrently.
+  - **Category Input Preservation**: Preserves custom new category selection (`__NEW__`) in `catSelect` so background updates never erase input while typing a new category name.
+- **Fix / Savings & Difference Suppression & Nested Active Price Hierarchy (baby.bg & Magento Fix)**:
+  - **Savings & Difference Filter (`isSavingsOrDifferenceEl`)**: Suppressed savings/difference elements (e.g. `<div class="you-save">Разлика <span class="price">41,05 €</span></div>`) across `content.js` and `picker.js`. Tags and eliminates numbers originating from containers with classes or IDs like `.you-save`, `.saving`, `.price-diff`, `.razlika`, `.discount-amount`, or text prefixes like *"Разлика"*, *"Спестявате"*, or *"You save"*, preventing savings differences from overriding the actual product price when selecting containers like `.product-options` or `.price-box`.
+  - **Active Price Hierarchy Inheritance**: Enabled `closest()` checks on active price selectors (`.special-price`, `.discounted-price`, `.product-new-price`, `.current-price`, `.sale-price`, `.brand--h2`, `.main-price`, `[itemprop="price"]`) in both `picker.js` and `content.js`. Nested price spans (such as `<p class="special-price"><span class="price">118,85 €</span></p>`) now properly inherit `isActive` status.
+  - **Decimal Cents & Precision Suffix Filtering**: Enhanced cents fragmentation filters to reject fractional leaves that start with a comma or dot (e.g. `<span class="precision">,85 €</span>` or `.99`), and discarded decimal fractions matching the cents of a full price candidate (e.g. `0.85` when `118.85` exists).
+- **Fix & Feature / Container Price Extraction Optimization & Live Picker Preview**:
+  - **Container Block Resilience**: Allowed selecting broad parent price containers (e.g. `<div class="c__price-block">`) to protect against frequent DOM restructuring and promotional hierarchy changes on eCommerce websites.
+  - **Comprehensive Noise Sanitization & "Цена с отстъпка" Fix**:
+    - Fixed a critical regex bug where sanitization for discount words was accidentally erasing the active price digits following phrases like *"Цена с отстъпка 549,99 €"* or *"Discount price $549.99"*, which caused the extractor to fall back to the strikethrough price (`599,99 €`).
+    - Regulatory EU Omnibus text (e.g., *"Най-ниска цена през последните 30 дни"* no longer erroneously extracts `30 €`).
+    - Delivery and shipping durations (e.g., *"Доставка от 4 до 5 дни"* or *"Доставка за 24-48 часа"* no longer extract `45 €`, `4 €`, or `5 €`).
+    - Warranty and return periods (e.g., *"2 години гаранция"*, *"14 дни за връщане"*).
+    - Quantities, pack sizes, and units (e.g., *"1 бр."*, *"100 ml"*, *"2 броя"*).
+    - Discount badges and percentages (e.g., `"-25%"`, *"спестявате 50 лв"*).
+  - **Multi-Tier Semantic Prioritization**:
+    - **Active/Discounted prices first**: Prioritizes genuine active and promotional price elements (`.c__discounted-price`, `.product-new-price`, `.current-price`, `[itemprop="price"]`, `.brand--h2`).
+    - **Strikethrough and MSRP suppression**: Automatically recognizes `<del>`, `<s>`, `.is-price-through`, `.old-price`, and MSRP/ПЦД reference prices, ensuring they never override active selling prices.
+    - **Secondary Currency Handling**: Filters out `<sd-converted-price>` / dual currency conversions so the primary site price (`549,99 €`) is accurately targeted.
+  - **Live Price Preview in Element Picker**: `picker.js` is fully synchronized with the multi-candidate extraction engine, displaying instant real-time price detection for the active hovered node (`💰 Открита цена: 549,99 €` / `💰 Detected price: 549.99 €`), giving users immediate feedback and certainty before selecting a block.
 - **Feature / Multi-Site Group Text History & Clean Category Headers**:
   - **Group Text History Timeline**: Clicking the history button on a text category opens an aggregated chronological timeline showing changes across all tracked sites in that group simultaneously, with individual and group-wide "✓ Mark All in Group as Reviewed" actions.
   - **Clean Category Headers**: Removed redundant `(Text)` label from category headers. Cleanly displays only category name and status badges without unnecessary placeholders when no prices exist.

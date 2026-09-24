@@ -23,6 +23,16 @@ PriceTracker Pro is a powerful browser extension (for Google Chrome, Microsoft E
 
 ## 📝 Changelog
 
+- **Fix & Optimization / Resilient Selector Relaxation, Anti-Bot & Out-of-Stock Diagnosis**:
+  - **Selector Relaxation & Layout Utility Filtering**: Enhanced `findTargetElement` in `content.js` to automatically relax brittle child combinator selectors (e.g. `div.product-page-pricing > div.d-flex > div.pricing-block`) into flexible descendant paths, stripping CSS layout utility classes (`d-flex`, `row`, `col`, etc.) and resolving leaf selectors without restrictive tag prefixes.
+  - **CSS Utility Stripping in Selector Generation**: Overhauled `getCssSelector` and `generateUniqueSelector` in both `picker.js` and `content.js` to ignore CSS layout helper classes (`d-flex`, `flex-*`, `justify-*`, `align-*`, `row`, `col-*`, `grid`, `container`), preventing the generation of fragile child selector chains.
+  - **Intelligent Page Failure Diagnosis**: Added real-time DOM diagnosis in `content.js` (`diagnosePageFailure`) when a target element is missing to identify root causes:
+    - *Bot protection / CAPTCHA*: Detects Cloudflare Turnstile, verification challenge pages, and robot verification prompts (`ERR_BOT_CHALLENGE`).
+    - *Out of Stock*: Detects e-commerce out-of-stock indicators (*"Изчерпан"*, *"Няма наличност"*, *"Currently unavailable"*, `ERR_OUT_OF_STOCK`).
+    - *404 / Missing page*: Detects page not found titles (`ERR_PAGE_NOT_FOUND`).
+  - **Localized User Diagnostics**: Added comprehensive localized error descriptions across English and Bulgarian in `i18n.js` so users receive clear, actionable feedback instead of generic *"Element was not found"* errors.
+  - **Clean Service Worker Logging**: Changed routine background scrape failure logging in `background.js` from `console.error` to `console.warn` to prevent normal scraping timeouts and website blocks from triggering red error alerts in `chrome://extensions/`.
+
 - **Fix & Optimization / Reliable Scraping Tab Closure & Orphan Garbage Collection**:
   - **Preserved Safety Timeout Lifecycle**: Fixed an issue in `background.js` where `cleanupListeners()` cancelled `safetyTimeoutId` immediately upon script injection at 6 seconds, removing any timeout while the site was waiting for elements or running bot-evasion macros. The safety timeout now remains active throughout the entire scrape lifecycle (up to 45s) and reliably closes unresponsive, hanging, or redirected tabs.
   - **Persistent Scraping Tab Registry (`activeScrapingTabs`)**: Added persistent tracking in `chrome.storage.local` for all background tabs opened for scraping with their IDs, item IDs, and timestamps.

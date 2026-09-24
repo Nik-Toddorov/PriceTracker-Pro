@@ -36,7 +36,7 @@ function generateUniqueSelector(el) {
     if (el.className && typeof el.className === 'string') {
         const classes = el.className.split(/\s+/).filter(c => 
             c && 
-            !/^(active|hover|focus|selected|open|closed|show|hide|visible|ng-|css-|styled-)/i.test(c) &&
+            !/^(active|hover|focus|selected|open|closed|show|hide|visible|ng-|css-|styled-|d-|flex|justify-|align-|row|col|grid|container|m-|p-|w-|h-)/i.test(c) &&
             !/^\d+$/.test(c)
         );
         
@@ -85,7 +85,7 @@ function generateUniqueSelector(el) {
 
         if (curr.className && typeof curr.className === 'string') {
             const validClasses = curr.className.split(/\s+/).filter(c => 
-                c && !/^(active|hover|focus|selected|open|show|hide|ng-|css-)/i.test(c) && !/^\d+$/.test(c)
+                c && !/^(active|hover|focus|selected|open|closed|show|hide|visible|ng-|css-|styled-|d-|flex|justify-|align-|row|col|grid|container|m-|p-|w-|h-)/i.test(c) && !/^\d+$/.test(c)
             );
             if (validClasses.length > 0) {
                 seg += '.' + CSS.escape(validClasses[0]);
@@ -531,7 +531,30 @@ function findTargetElement(selector, itemType = 'price') {
         if (el) return el;
     } catch (e) {}
 
-    // 2. Relaxed selector (strip :nth-of-type and try sub-selectors)
+    // 2. Relaxed child combinator (> replaced by descendant space)
+    try {
+        if (selector.includes('>')) {
+            const descendantSelector = selector.replace(/\s*>\s*/g, ' ');
+            const el = document.querySelector(descendantSelector);
+            if (el) return el;
+        }
+    } catch (e) {}
+
+    // 3. Relaxed selector: strip non-semantic layout utility classes (d-flex, row, col, etc.)
+    try {
+        const cleanSegments = selector
+            .split(/\s*>\s*|\s+/)
+            .filter(seg => !/\.(d-|flex|justify-|align-|row|col|grid|container|m-|p-|w-|h-)/i.test(seg));
+        if (cleanSegments.length > 0) {
+            const cleanSelector = cleanSegments.join(' ');
+            if (cleanSelector !== selector) {
+                const el = document.querySelector(cleanSelector);
+                if (el) return el;
+            }
+        }
+    } catch (e) {}
+
+    // 4. Relaxed selector (strip :nth-of-type and try sub-selectors)
     try {
         if (selector.includes(':nth-of-type')) {
             const withoutNth = selector.replace(/:nth-of-type\(\d+\)/g, '');
@@ -551,11 +574,18 @@ function findTargetElement(selector, itemType = 'price') {
             if (leafSelector && (leafSelector.includes('.') || leafSelector.includes('#'))) {
                 const elLeaf = document.querySelector(leafSelector);
                 if (elLeaf) return elLeaf;
+
+                // Try leaf class without element tag prefix (e.g. div.pricing-block -> .pricing-block)
+                const classOnly = leafSelector.match(/\.[\w-]+/);
+                if (classOnly) {
+                    const elClassOnly = document.querySelector(classOnly[0]);
+                    if (elClassOnly) return elClassOnly;
+                }
             }
         }
     } catch (e) {}
 
-    // 3. eCommerce price selector fallbacks (if itemType === 'price')
+    // 5. eCommerce price selector fallbacks (if itemType === 'price')
     if (itemType === 'price') {
         const priceCandidates = [
             'p.special-price',
@@ -564,6 +594,7 @@ function findTargetElement(selector, itemType = 'price') {
             '.product-new-price',
             '.product-price',
             '.pricing-block .product-new-price',
+            '.product-page-pricing .product-new-price',
             '.price-current',
             '.main-price',
             '.price-box',
@@ -594,6 +625,61 @@ function findTargetElement(selector, itemType = 'price') {
                 }
             } catch (e) {}
         }
+    }
+
+    return null;
+}
+
+/**
+ * Inspects DOM to identify specific root causes when target elements cannot be found
+ * (Cloudflare / bot challenges, Out of stock, 404 error pages).
+ */
+function diagnosePageFailure() {
+    const title = (document.title || '').toLowerCase();
+    const bodyText = (document.body ? document.body.innerText || document.body.textContent || '' : '').toLowerCase();
+
+    // 1. Cloudflare / Bot Protection / CAPTCHA
+    const hasCfChallenge = document.getElementById('challenge-running') || 
+                           document.getElementById('challenge-form') ||
+                           document.querySelector('.cf-turnstile') ||
+                           document.querySelector('.cf-browser-verification') ||
+                           document.querySelector('#px-captcha') ||
+                           document.querySelector('iframe[src*="cloudflare"]') ||
+                           document.querySelector('iframe[src*="challenges"]');
+    const isBotTitle = title.includes('just a moment') || 
+                       title.includes('attention required') || 
+                       title.includes('security check') || 
+                       title.includes('robot or human') || 
+                       title.includes('bot verification') ||
+                       title.includes('cloudflare');
+    const isBotText = bodyText.includes('checking your browser') || 
+                      bodyText.includes('потвърдете, че сте човек') || 
+                      bodyText.includes('verify you are a human') ||
+                      bodyText.includes('access denied') ||
+                      bodyText.includes('incident id');
+
+    if (hasCfChallenge || isBotTitle || isBotText) {
+        return "ERR_BOT_CHALLENGE";
+    }
+
+    // 2. Out of Stock / Unavailable
+    const outOfStockEl = document.querySelector('.product-page-out-of-stock, .label-out-of-stock, .btn-out-of-stock, .out-of-stock, [class*="out-of-stock"], [class*="outofstock"]');
+    const isOutOfStockText = bodyText.includes('този продукт е изчерпан') || 
+                            bodyText.includes('продуктът е изчерпан') || 
+                            bodyText.includes('няма наличност') || 
+                            bodyText.includes('изчерпана наличност') ||
+                            bodyText.includes('currently unavailable') || 
+                            bodyText.includes('out of stock') ||
+                            bodyText.includes('temporarily out of stock');
+
+    if (outOfStockEl || isOutOfStockText) {
+        return "ERR_OUT_OF_STOCK";
+    }
+
+    // 3. 404 / 410 / Not Found Page
+    const isNotFoundTitle = title.includes('404') || title.includes('not found') || title.includes('страницата не е намерена');
+    if (isNotFoundTitle) {
+        return "ERR_PAGE_NOT_FOUND";
     }
 
     return null;
@@ -683,6 +769,10 @@ async function executeScrapingTask(config) {
         let element = await waitForElement(config.selector, config.type || "price", 20000);
 
         if (!element) {
+            const diag = diagnosePageFailure();
+            if (diag) {
+                throw new Error(diag);
+            }
             throw new Error(`Element with selector "${config.selector}" was not found.`);
         }
 

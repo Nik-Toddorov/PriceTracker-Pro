@@ -154,6 +154,9 @@ export const translations = {
         "err_timeout": "Timeout (35s) or tab unresponsive",
         "err_open_tab": "Failed to open background tab",
         "err_inject": "Failed to inject script into page",
+        "err_bot_challenge": "Bot protection or CAPTCHA challenge detected (e.g. Cloudflare). Open page to verify.",
+        "err_out_of_stock": "Product is out of stock or unavailable on site",
+        "err_page_not_found": "Product page not found or removed (404/Not Found)",
         "err_element_not_found": "Element not found on page (selector may have changed)",
         "err_invalid_price": "Extracted price is not a valid number",
         "last_check_failed": "Last check failed",
@@ -332,6 +335,9 @@ export const translations = {
         "err_timeout": "Изтече времето за изчакване (35 сек) или сайтът не отговаря",
         "err_open_tab": "Неуспешно отваряне на фонов таб",
         "err_inject": "Неуспешно инжектиране на скрипт в страницата",
+        "err_bot_challenge": "Засечена е защита против ботове или CAPTCHA (напр. Cloudflare). Отворете страницата ръчно.",
+        "err_out_of_stock": "Продуктът е изчерпан или не е наличен в сайта",
+        "err_page_not_found": "Продуктовата страница не е намерена (404/Грешка)",
         "err_element_not_found": "Елементът не беше открит (селекторът може да е променен)",
         "err_invalid_price": "Извлечената цена не е валидно число",
         "last_check_failed": "Последната проверка беше неуспешна",
@@ -395,6 +401,15 @@ export function getTranslatedError(err) {
     }
     if (errStr.includes("Failed to inject") || errStr === "ERR_INJECT") {
         return `${t("check_failed_prefix")}: ${t("err_inject")}`;
+    }
+    if (errStr.includes("ERR_BOT_CHALLENGE") || errStr.includes("Bot protection") || errStr.includes("CAPTCHA") || errStr.includes("Cloudflare")) {
+        return `${t("check_failed_prefix")}: ${t("err_bot_challenge")}`;
+    }
+    if (errStr.includes("ERR_OUT_OF_STOCK") || errStr.includes("out of stock") || errStr.includes("изчерпан")) {
+        return `${t("check_failed_prefix")}: ${t("err_out_of_stock")}`;
+    }
+    if (errStr.includes("ERR_PAGE_NOT_FOUND") || errStr.includes("404") || errStr.includes("not found page")) {
+        return `${t("check_failed_prefix")}: ${t("err_page_not_found")}`;
     }
     if (errStr.includes("не беше открит") || errStr.includes("not found") || errStr.includes("not discovered") || errStr.includes("селектор") || errStr.includes("selector")) {
         return `${t("check_failed_prefix")}: ${t("err_element_not_found")}`;

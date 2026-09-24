@@ -765,7 +765,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (targetTabId) activeScrapes.delete(targetTabId);
             stopScrapeKeepAlive();
 
-            console.error(`Scraping error for ${message.itemConfig?.id}:`, message.error);
+            console.warn(`Scraping error for ${message.itemConfig?.id}:`, message.error);
             try {
                 await processScrapeError(message.itemConfig, message.error);
             } catch (err) {

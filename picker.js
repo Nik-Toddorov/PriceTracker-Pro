@@ -225,7 +225,7 @@ if (!window.priceTrackerPickerInjected) {
         if (el.className && typeof el.className === 'string') {
             const classes = el.className.split(/\s+/).filter(c => 
                 c && 
-                !/^(active|hover|focus|selected|open|closed|show|hide|visible|ng-|css-|styled-)/i.test(c) &&
+                !/^(active|hover|focus|selected|open|closed|show|hide|visible|ng-|css-|styled-|d-|flex|justify-|align-|row|col|grid|container|m-|p-|w-|h-)/i.test(c) &&
                 !/^\d+$/.test(c)
             );
             
@@ -274,7 +274,7 @@ if (!window.priceTrackerPickerInjected) {
 
             if (curr.className && typeof curr.className === 'string') {
                 const validClasses = curr.className.split(/\s+/).filter(c => 
-                    c && !/^(active|hover|focus|selected|open|show|hide|ng-|css-)/i.test(c) && !/^\d+$/.test(c)
+                    c && !/^(active|hover|focus|selected|open|closed|show|hide|visible|ng-|css-|styled-|d-|flex|justify-|align-|row|col|grid|container|m-|p-|w-|h-)/i.test(c) && !/^\d+$/.test(c)
                 );
                 if (validClasses.length > 0) {
                     seg += '.' + CSS.escape(validClasses[0]);

@@ -482,19 +482,41 @@ async function processScrapeResult(itemConfig, currentValue, timestamp, currency
   if (currency) itemToUpdate.currency = currency;
 
   // Push new value to history only if different from previous value
+  let hasValueChanged = false;
   if (lastHistoryRecord === null || lastHistoryRecord !== parsedValue) {
       history.push({
-        date: timestamp || new Date().toISOString(),
+        date: checkTime,
         value: parsedValue
       });
       
       // Cap history length to 100 entries
       if (history.length > 100) history.shift();
       itemToUpdate.history = history;
+
+      if (lastHistoryRecord !== null) {
+          hasValueChanged = true;
+      }
   }
 
   // Save back to storage
   await chrome.storage.local.set({ trackingData });
+
+  // Record into persistent chronological change history log if value changed
+  if (hasValueChanged) {
+      await recordChangeLogEntry({
+          itemId: itemToUpdate.id,
+          catKey: categoryKey,
+          categoryName: trackingData[categoryKey]?.categoryName || categoryKey,
+          url: itemToUpdate.url,
+          selector: itemToUpdate.selector,
+          type: itemToUpdate.type,
+          currency: itemToUpdate.currency || '€',
+          oldValue: lastHistoryRecord,
+          newValue: parsedValue,
+          timestamp: checkTime,
+          isLowest: isNewLowest
+      });
+  }
 
   // Trigger desktop notification and sound if criteria met
   if (isNewLowest && settings.notificationsEnabled) {
@@ -502,6 +524,59 @@ async function processScrapeResult(itemConfig, currentValue, timestamp, currency
     if (settings.notificationSound) {
         playSound();
     }
+  }
+}
+
+// 5b. RECORD CHANGE LOG ENTRY (Chronological audit history)
+async function recordChangeLogEntry(changeInfo) {
+  try {
+    const data = await chrome.storage.local.get(['changeHistoryLog']);
+    const log = Array.isArray(data.changeHistoryLog) ? data.changeHistoryLog : [];
+
+    const entryId = 'chg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
+    let diff = null;
+    let percent = null;
+    let changeType = 'text_change';
+
+    if (changeInfo.type === 'price') {
+      const oldNum = parseFloat(changeInfo.oldValue);
+      const newNum = parseFloat(changeInfo.newValue);
+      if (!isNaN(oldNum) && !isNaN(newNum)) {
+        diff = Math.round((newNum - oldNum) * 100) / 100;
+        percent = oldNum !== 0 ? Math.round(((newNum - oldNum) / oldNum) * 1000) / 10 : 0;
+        changeType = newNum < oldNum ? 'drop' : 'increase';
+      }
+    }
+
+    const newEntry = {
+      id: entryId,
+      timestamp: changeInfo.timestamp || new Date().toISOString(),
+      itemId: changeInfo.itemId,
+      catKey: changeInfo.catKey,
+      categoryName: changeInfo.categoryName,
+      url: changeInfo.url,
+      selector: changeInfo.selector,
+      type: changeInfo.type,
+      currency: changeInfo.currency || '€',
+      oldValue: changeInfo.oldValue,
+      newValue: changeInfo.newValue,
+      difference: diff,
+      percentChange: percent,
+      changeType: changeType,
+      isLowest: !!changeInfo.isLowest
+    };
+
+    log.unshift(newEntry);
+
+    // Keep up to 500 recent change events
+    if (log.length > 500) {
+      log.length = 500;
+    }
+
+    await chrome.storage.local.set({ changeHistoryLog: log });
+  } catch (err) {
+    console.warn("Failed to record change log entry:", err);
   }
 }
 
@@ -540,6 +615,16 @@ async function showNotification(item, newValue) {
     requireInteraction: true 
   });
 }
+
+// Click on desktop notification opens options page directly to change history tab
+chrome.notifications.onClicked.addListener(async () => {
+  try {
+    await chrome.storage.local.set({ openTargetTab: 'tab-history-log' });
+    chrome.runtime.openOptionsPage();
+  } catch (e) {
+    console.warn("Error opening options on notification click:", e);
+  }
+});
 
 // 8. AUDIO PLAYBACK (Offscreen Document for Manifest V3)
 async function playSound() {

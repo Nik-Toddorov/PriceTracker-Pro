@@ -17,11 +17,22 @@ PriceTracker Pro is a powerful browser extension (for Google Chrome, Microsoft E
 - **Duplicate & Overlap Scanner**: Intelligent URL normalization (stripping tracking query params and hashes) to detect and manage duplicate trackers or overlapping selectors.
 - **Interactive Price History Charts**: Visual price trend graphs powered by Chart.js for individual items and categories.
 - **Google Drive Cloud Sync**: Secure backup and restore for all tracked items and preferences via the Google Drive AppData folder.
+- **Chronological Change History & Audit Timeline**: Dedicated management tab logging every price drop, price increase, and text change with before-and-after values, percentages, visual word-level text diffs, statistics, search/filtering, and JSON export.
 - **Audio & Push Notifications**: Instant desktop and sound alerts when a price drop or text update is detected.
 - **Dark Mode & Multilingual**: Supports dark/light themes (Google Material 3 palette) and multiple languages (English and Bulgarian).
 - **Automated CI/CD & Packaging**: GitHub Actions workflow that validates manifest and syntax, packaging production-ready extension ZIP releases automatically.
 
 ## 📝 Changelog
+
+- **Feature / Chronological Price & Text Change History Tab & Audit Log**:
+  - **Dedicated Change History Tab**: Added a brand new "Change History" ("Хронология на промените") tab in the dashboard (`options.html`) providing a complete, chronological timeline of all price drops, price increases, and text changes.
+  - **Previous vs. New State Details**: Clearly records and displays what the previous value was, what it changed to, absolute and percentage differences (`-15.00 лв. / -12.5%`), all-time lowest price badges, and inline word-level diffs (`diff-ins` / `diff-del`) for content and stock changes.
+  - **Live Statistics Overview**: Added 4 real-time stat metric cards tracking Total Changes, Price Drops, Price Increases, and Text Updates.
+  - **Filtering & Search**: Dynamic filtering by change type (Price Drops, Price Increases, Text Changes), category dropdown, and live text search across URLs, categories, selectors, and content.
+  - **Notification Click Navigation**: Clicking a desktop notification popup automatically opens the management dashboard and switches directly to the Change History tab.
+  - **Audit Management & Export**: Built-in 1-click JSON export for audit trails, single-entry removal, and full history clearing with user confirmation.
+  - **Historical Aggregation**: Reconstructs past change events from existing item history so past changes are immediately visible upon loading, alongside new background scrape events.
+  - **Full Bilingual Support**: Localized in Bulgarian and English with responsive dark/light mode styling.
 
 - **Fix & Optimization / Resilient Selector Relaxation, Anti-Bot & Out-of-Stock Diagnosis**:
   - **Selector Relaxation & Layout Utility Filtering**: Enhanced `findTargetElement` in `content.js` to automatically relax brittle child combinator selectors (e.g. `div.product-page-pricing > div.d-flex > div.pricing-block`) into flexible descendant paths, stripping CSS layout utility classes (`d-flex`, `row`, `col`, etc.) and resolving leaf selectors without restrictive tag prefixes.

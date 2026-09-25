@@ -98,6 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadSettings();
     await renderTrackedItems();
     await renderExportCheckboxes();
+    await renderChangeHistoryLog();
 
     // 2. Event Listeners for forms and buttons
     document.getElementById('optionsRefreshBtn').addEventListener('click', handleManualRefresh);
@@ -105,6 +106,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
     document.getElementById('exportBtn').addEventListener('click', exportData);
     document.getElementById('importBtn').addEventListener('click', importData);
+
+    const refreshLogBtn = document.getElementById('refreshLogBtn');
+    if (refreshLogBtn) refreshLogBtn.addEventListener('click', renderChangeHistoryLog);
+
+    const clearLogBtn = document.getElementById('clearLogBtn');
+    if (clearLogBtn) clearLogBtn.addEventListener('click', clearChangeHistoryLog);
+
+    const exportLogBtn = document.getElementById('exportLogBtn');
+    if (exportLogBtn) exportLogBtn.addEventListener('click', exportChangeHistoryLog);
+
+    const historySearchInput = document.getElementById('historySearchInput');
+    let searchDebounce = null;
+    if (historySearchInput) {
+        historySearchInput.addEventListener('input', () => {
+            if (searchDebounce) clearTimeout(searchDebounce);
+            searchDebounce = setTimeout(renderChangeHistoryLog, 150);
+        });
+    }
+
+    const historyTypeFilter = document.getElementById('historyTypeFilter');
+    if (historyTypeFilter) historyTypeFilter.addEventListener('change', renderChangeHistoryLog);
+
+    const historyCatFilter = document.getElementById('historyCatFilter');
+    if (historyCatFilter) historyCatFilter.addEventListener('change', renderChangeHistoryLog);
+
+    const historyLogList = document.getElementById('historyLogList');
+    if (historyLogList) historyLogList.addEventListener('click', handleHistoryLogClicks);
 
     const driveBackupBtn = document.getElementById('driveBackupBtn');
     if (driveBackupBtn) driveBackupBtn.addEventListener('click', backupToDrive);
@@ -219,6 +247,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (changes.trackingData) {
                 debouncedRender(200);
             }
+            if (changes.changeHistoryLog || changes.trackingData) {
+                renderChangeHistoryLog();
+            }
         }
     });
 
@@ -321,31 +352,49 @@ function initTabs() {
     const tabs = document.querySelectorAll('.tab');
     const contents = document.querySelectorAll('.tab-content');
 
+    function activateTab(targetId) {
+        tabs.forEach(t => {
+            if (t.dataset.target === targetId) t.classList.add('active');
+            else t.classList.remove('active');
+        });
+        contents.forEach(c => {
+            if (c.id === targetId) c.classList.add('active');
+            else c.classList.remove('active');
+        });
+    }
+
+    // Check if background service worker set openTargetTab (e.g. from notification click)
+    chrome.storage.local.get(['openTargetTab'], (res) => {
+        if (res && res.openTargetTab && document.getElementById(res.openTargetTab)) {
+            sessionStorage.setItem('activeOptionsTab', res.openTargetTab);
+            chrome.storage.local.remove('openTargetTab');
+            activateTab(res.openTargetTab);
+            if (res.openTargetTab === 'tab-history-log') {
+                renderChangeHistoryLog();
+            }
+        }
+    });
+
     // Restore previously active tab from sessionStorage if available
     try {
         const savedTabTarget = sessionStorage.getItem('activeOptionsTab');
         if (savedTabTarget && document.getElementById(savedTabTarget)) {
-            tabs.forEach(t => {
-                if (t.dataset.target === savedTabTarget) t.classList.add('active');
-                else t.classList.remove('active');
-            });
-            contents.forEach(c => {
-                if (c.id === savedTabTarget) c.classList.add('active');
-                else c.classList.remove('active');
-            });
+            activateTab(savedTabTarget);
+            if (savedTabTarget === 'tab-history-log') {
+                renderChangeHistoryLog();
+            }
         }
     } catch (e) { }
 
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            contents.forEach(c => c.classList.remove('active'));
-
-            tab.classList.add('active');
-            document.getElementById(tab.dataset.target).classList.add('active');
+            activateTab(tab.dataset.target);
             try {
                 sessionStorage.setItem('activeOptionsTab', tab.dataset.target);
             } catch (e) { }
+            if (tab.dataset.target === 'tab-history-log') {
+                renderChangeHistoryLog();
+            }
         });
     });
 }
@@ -1931,3 +1980,421 @@ async function autoCleanExactDuplicates() {
         alert(t("no_exact_duplicates_to_clean"));
     }
 }
+
+// ==========================================
+// --- CHANGE HISTORY LOG & AUDIT TIMELINE ---
+// ==========================================
+
+function getRelativeTime(isoString) {
+    if (!isoString) return '';
+    try {
+        const timestamp = new Date(isoString).getTime();
+        if (isNaN(timestamp)) return '';
+        const now = Date.now();
+        const diffMs = now - timestamp;
+        const diffSecs = Math.max(0, Math.floor(diffMs / 1000));
+        const diffMins = Math.floor(diffSecs / 60);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        if (diffSecs < 60) return t("time_ago_just_now");
+        if (diffMins < 60) return t("time_ago_mins", { m: diffMins });
+        if (diffHours < 24) return t("time_ago_hours", { h: diffHours });
+        if (diffDays === 1) return t("time_ago_yesterday");
+        return t("time_ago_days", { d: diffDays });
+    } catch (e) {
+        return '';
+    }
+}
+
+/**
+ * Aggregates all change events across trackingData history and stored changeHistoryLog.
+ */
+async function getAllChangeEvents() {
+    const data = await chrome.storage.local.get(['trackingData', 'changeHistoryLog', 'changeLogClearedAt', 'deletedLogEventIds']);
+    const trackingData = data.trackingData || {};
+    const storedLog = Array.isArray(data.changeHistoryLog) ? data.changeHistoryLog : [];
+    const clearedAtTime = data.changeLogClearedAt ? new Date(data.changeLogClearedAt).getTime() : 0;
+    const deletedIds = new Set(Array.isArray(data.deletedLogEventIds) ? data.deletedLogEventIds : []);
+
+    const combinedMap = new Map();
+
+    // 1. Reconstruct historical change transitions from all items in trackingData
+    for (const [catKey, catData] of Object.entries(trackingData)) {
+        const catName = catData.categoryName || catKey;
+        const items = Array.isArray(catData.items) ? catData.items : [];
+
+        for (const item of items) {
+            const history = Array.isArray(item.history) ? item.history : [];
+            if (history.length < 2) continue;
+
+            // Sort history ascending to find chronological transitions
+            const sortedHistory = [...history].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            for (let i = 1; i < sortedHistory.length; i++) {
+                const prev = sortedHistory[i - 1];
+                const curr = sortedHistory[i];
+
+                if (prev.value === curr.value) continue;
+
+                const currTime = new Date(curr.date).getTime();
+                if (clearedAtTime > 0 && currTime <= clearedAtTime) continue;
+
+                const eventId = `hist_${item.id}_${currTime}`;
+                if (deletedIds.has(eventId)) continue;
+
+                let diff = null;
+                let percent = null;
+                let changeType = 'text_change';
+
+                if (item.type === 'price') {
+                    const oldNum = parseFloat(prev.value);
+                    const newNum = parseFloat(curr.value);
+                    if (!isNaN(oldNum) && !isNaN(newNum)) {
+                        diff = Math.round((newNum - oldNum) * 100) / 100;
+                        percent = oldNum !== 0 ? Math.round(((newNum - oldNum) / oldNum) * 1000) / 10 : 0;
+                        changeType = newNum < oldNum ? 'drop' : 'increase';
+                    }
+                }
+
+                // Check if this was a new lowest price at that time
+                const lowestSoFar = Math.min(...sortedHistory.slice(0, i).map(h => parseFloat(h.value)).filter(v => !isNaN(v)));
+                const isLowest = item.type === 'price' && parseFloat(curr.value) < lowestSoFar;
+
+                const key = `${item.id}_${Math.floor(currTime / 10000)}`;
+
+                combinedMap.set(key, {
+                    id: eventId,
+                    timestamp: curr.date,
+                    timeMs: currTime,
+                    itemId: item.id,
+                    catKey: catKey,
+                    categoryName: catName,
+                    url: item.url,
+                    selector: item.selector,
+                    type: item.type,
+                    currency: item.currency || '€',
+                    oldValue: prev.value,
+                    newValue: curr.value,
+                    difference: diff,
+                    percentChange: percent,
+                    changeType: changeType,
+                    isLowest: isLowest
+                });
+            }
+        }
+    }
+
+    // 2. Merge logged events from changeHistoryLog (stored directly from scrape events)
+    for (const entry of storedLog) {
+        if (!entry || !entry.timestamp) continue;
+        const entryTime = new Date(entry.timestamp).getTime();
+        if (clearedAtTime > 0 && entryTime <= clearedAtTime) continue;
+        if (entry.id && deletedIds.has(entry.id)) continue;
+
+        const key = `${entry.itemId}_${Math.floor(entryTime / 10000)}`;
+
+        combinedMap.set(key, {
+            ...entry,
+            timeMs: entryTime
+        });
+    }
+
+    // Convert map to array and sort descending (newest first)
+    const allEvents = Array.from(combinedMap.values());
+    allEvents.sort((a, b) => b.timeMs - a.timeMs);
+
+    return allEvents;
+}
+
+/**
+ * Renders the change history log, statistics, filter controls, and diff cards.
+ */
+async function renderChangeHistoryLog() {
+    const listContainer = document.getElementById('historyLogList');
+    if (!listContainer) return;
+
+    const allEvents = await getAllChangeEvents();
+
+    // 1. Calculate & update stats counters
+    let totalDrops = 0;
+    let totalIncreases = 0;
+    let totalText = 0;
+
+    const categoriesSet = new Set();
+
+    allEvents.forEach(ev => {
+        if (ev.categoryName) categoriesSet.add(ev.categoryName);
+        if (ev.type === 'price') {
+            if (ev.changeType === 'drop') totalDrops++;
+            else if (ev.changeType === 'increase') totalIncreases++;
+        } else if (ev.type === 'text') {
+            totalText++;
+        }
+    });
+
+    const statTotalEl = document.getElementById('statTotalChanges');
+    const statDropEl = document.getElementById('statPriceDrops');
+    const statIncEl = document.getElementById('statPriceIncreases');
+    const statTextEl = document.getElementById('statTextChanges');
+
+    if (statTotalEl) statTotalEl.innerText = allEvents.length;
+    if (statDropEl) statDropEl.innerText = totalDrops;
+    if (statIncEl) statIncEl.innerText = totalIncreases;
+    if (statTextEl) statTextEl.innerText = totalText;
+
+    // 2. Populate Category Filter dropdown while preserving current selection
+    const catFilter = document.getElementById('historyCatFilter');
+    if (catFilter) {
+        const currentSelected = catFilter.value;
+        catFilter.innerHTML = `<option value="all">${t("filter_all_categories")}</option>`;
+        Array.from(categoriesSet).sort().forEach(catName => {
+            const opt = document.createElement('option');
+            opt.value = catName;
+            opt.textContent = catName;
+            catFilter.appendChild(opt);
+        });
+        if (currentSelected && (currentSelected === 'all' || categoriesSet.has(currentSelected))) {
+            catFilter.value = currentSelected;
+        }
+    }
+
+    // 3. Filter events based on active inputs
+    const searchVal = (document.getElementById('historySearchInput')?.value || '').trim().toLowerCase();
+    const typeFilterVal = document.getElementById('historyTypeFilter')?.value || 'all';
+    const catFilterVal = catFilter?.value || 'all';
+
+    const filteredEvents = allEvents.filter(ev => {
+        // Type filter
+        if (typeFilterVal === 'drop' && ev.changeType !== 'drop') return false;
+        if (typeFilterVal === 'increase' && ev.changeType !== 'increase') return false;
+        if (typeFilterVal === 'text' && ev.type !== 'text') return false;
+
+        // Category filter
+        if (catFilterVal !== 'all' && ev.categoryName !== catFilterVal && ev.catKey !== catFilterVal) return false;
+
+        // Search filter
+        if (searchVal) {
+            const urlStr = String(ev.url || '').toLowerCase();
+            const catStr = String(ev.categoryName || '').toLowerCase();
+            const oldStr = String(ev.oldValue || '').toLowerCase();
+            const newStr = String(ev.newValue || '').toLowerCase();
+            const selStr = String(ev.selector || '').toLowerCase();
+            if (!urlStr.includes(searchVal) && !catStr.includes(searchVal) && !oldStr.includes(searchVal) && !newStr.includes(searchVal) && !selStr.includes(searchVal)) {
+                return false;
+            }
+        }
+
+        return true;
+    });
+
+    // 4. Render cards
+    if (filteredEvents.length === 0) {
+        const msg = (allEvents.length === 0) ? t("no_changes_logged") : t("no_changes_matching_filter");
+        listContainer.innerHTML = `
+            <div style="background: var(--bg-main); border: 1px dashed var(--border-color); border-radius: 6px; padding: 30px; text-align: center; color: var(--text-muted); margin-top: 10px;">
+                <div style="font-size: 32px; margin-bottom: 10px;">🔍</div>
+                <div style="font-size: 14px; max-width: 500px; margin: 0 auto; line-height: 1.5;">${msg}</div>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+
+    filteredEvents.forEach(ev => {
+        let domain = t("site");
+        try { domain = new URL(ev.url).hostname; } catch (e) { }
+
+        // Change badge HTML
+        let changeBadgeHtml = '';
+        if (ev.type === 'price') {
+            const diffAbs = ev.difference !== null ? Math.abs(ev.difference) : 0;
+            const pctAbs = ev.percentChange !== null ? Math.abs(ev.percentChange) : 0;
+            const curr = ev.currency || '€';
+
+            if (ev.changeType === 'drop') {
+                changeBadgeHtml = `<span class="badge-change-pill drop">📉 -${diffAbs} ${escapeHtml(curr)} (-${pctAbs}%)</span>`;
+            } else {
+                changeBadgeHtml = `<span class="badge-change-pill increase">📈 +${diffAbs} ${escapeHtml(curr)} (+${pctAbs}%)</span>`;
+            }
+            if (ev.isLowest) {
+                changeBadgeHtml += ` <span class="badge-lowest-star">${t("badge_all_time_low")}</span>`;
+            }
+        } else {
+            changeBadgeHtml = `<span class="badge-change-pill text">📝 ${t("badge_text_updated")}</span>`;
+        }
+
+        // State Comparison HTML
+        let comparisonHtml = '';
+        if (ev.type === 'price') {
+            const curr = ev.currency || '€';
+            comparisonHtml = `
+                <div class="log-state-grid">
+                    <div class="log-state-box">
+                        <div class="log-state-label">${t("prev_state_label")}</div>
+                        <div class="log-state-val old">${escapeHtml(ev.oldValue)} ${escapeHtml(curr)}</div>
+                    </div>
+                    <div class="log-arrow">➔</div>
+                    <div class="log-state-box">
+                        <div class="log-state-label">${t("new_state_label")}</div>
+                        <div class="log-state-val new ${ev.changeType}">${escapeHtml(ev.newValue)} ${escapeHtml(curr)}</div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Text comparison with diff
+            comparisonHtml = `
+                <div style="margin: 10px 0;">
+                    <div class="log-state-grid">
+                        <div class="log-state-box">
+                            <div class="log-state-label">${t("prev_state_label")}</div>
+                            <div style="font-size: 13px; max-height: 80px; overflow-y: auto; padding: 6px; background: var(--bg-container); border: 1px solid var(--border-color); border-radius: 4px; word-break: break-word;">${escapeHtml(ev.oldValue)}</div>
+                        </div>
+                        <div class="log-arrow">➔</div>
+                        <div class="log-state-box">
+                            <div class="log-state-label">${t("new_state_label")}</div>
+                            <div style="font-size: 13px; max-height: 80px; overflow-y: auto; padding: 6px; background: var(--bg-container); border: 1px solid var(--border-color); border-radius: 4px; word-break: break-word;">${escapeHtml(ev.newValue)}</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 6px;">
+                        <details style="font-size: 13px;">
+                            <summary style="cursor: pointer; font-weight: 600; color: var(--link-color); padding: 4px 0;">🔍 ${t("diff_label")}</summary>
+                            <div style="padding: 8px 10px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 4px; margin-top: 5px; line-height: 1.4; word-break: break-word;">
+                                ${computeTextDiff(ev.oldValue, ev.newValue)}
+                            </div>
+                        </details>
+                    </div>
+                </div>
+            `;
+        }
+
+        html += `
+            <div class="log-item-card ${ev.changeType || 'drop'}" data-logid="${escapeHtml(ev.id)}">
+                <div class="log-card-header">
+                    <div class="log-card-meta">
+                        <span class="log-category-pill">📁 ${escapeHtml(ev.categoryName)}</span>
+                        <a href="${escapeHtml(ev.url)}" target="_blank" rel="noopener noreferrer" style="color: var(--link-color); font-weight: bold; text-decoration: none;">🌐 ${escapeHtml(domain)} ↗️</a>
+                        ${changeBadgeHtml}
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="log-time-relative">${getRelativeTime(ev.timestamp)}</span>
+                        <span class="log-time-badge">🕒 ${formatDateTime(ev.timestamp)}</span>
+                    </div>
+                </div>
+
+                ${comparisonHtml}
+
+                <div class="log-card-footer">
+                    <div style="color: var(--text-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 450px;">
+                        <span title="${escapeHtml(ev.selector)}">🎯 <code>${escapeHtml(ev.selector)}</code></span>
+                    </div>
+                    <div class="log-card-actions">
+                        <button type="button" class="btn-open-log-url" data-url="${escapeHtml(ev.url)}" style="background: var(--header-bg); color: var(--text-main); border: 1px solid var(--border-color); cursor: pointer;">${t("open_site_btn")}</button>
+                        <button type="button" class="btn-log-item-history" data-catkey="${escapeHtml(ev.catKey)}" data-itemid="${escapeHtml(ev.itemId)}" data-type="${escapeHtml(ev.type)}" style="background: var(--btn-bg); color: var(--btn-text); cursor: pointer;">${t("view_details_btn")}</button>
+                        <button type="button" class="btn-delete-log-entry danger" data-logid="${escapeHtml(ev.id)}" title="${t("delete_entry_btn")}" style="cursor: pointer;">${t("delete_entry_btn")}</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    listContainer.innerHTML = html;
+}
+
+function handleHistoryLogClicks(e) {
+    const target = e.target;
+    if (target.classList.contains('btn-open-log-url') || target.closest('.btn-open-log-url')) {
+        const btn = target.classList.contains('btn-open-log-url') ? target : target.closest('.btn-open-log-url');
+        const url = btn.dataset.url;
+        if (url) window.open(url, '_blank');
+    } else if (target.classList.contains('btn-log-item-history') || target.closest('.btn-log-item-history')) {
+        const btn = target.classList.contains('btn-log-item-history') ? target : target.closest('.btn-log-item-history');
+        const catKey = btn.dataset.catkey;
+        const itemId = btn.dataset.itemid;
+        const itemType = btn.dataset.type;
+
+        chrome.storage.local.get('trackingData', (data) => {
+            const trackingData = data.trackingData || {};
+            const item = trackingData[catKey]?.items.find(i => i.id === itemId);
+            if (item) {
+                if (itemType === 'text') {
+                    window.showTextItemHistory(catKey, itemId, item, trackingData[catKey]?.categoryName);
+                } else {
+                    window.showItemHistory(catKey, itemId);
+                }
+            } else {
+                alert(t("history_no_data"));
+            }
+        });
+    } else if (target.classList.contains('btn-delete-log-entry') || target.closest('.btn-delete-log-entry')) {
+        const btn = target.classList.contains('btn-delete-log-entry') ? target : target.closest('.btn-delete-log-entry');
+        const logId = btn.dataset.logid;
+        if (logId) {
+            deleteSingleLogEntry(logId);
+        }
+    }
+}
+
+async function deleteSingleLogEntry(logId) {
+    if (!confirm(t("confirm_delete_log_entry"))) return;
+
+    try {
+        const data = await chrome.storage.local.get(['changeHistoryLog', 'deletedLogEventIds']);
+        const log = Array.isArray(data.changeHistoryLog) ? data.changeHistoryLog : [];
+        const deletedIds = Array.isArray(data.deletedLogEventIds) ? data.deletedLogEventIds : [];
+
+        deletedIds.push(logId);
+        const updatedLog = log.filter(entry => entry.id !== logId);
+
+        await chrome.storage.local.set({
+            changeHistoryLog: updatedLog,
+            deletedLogEventIds: deletedIds
+        });
+
+        await renderChangeHistoryLog();
+    } catch (e) {
+        console.error("Error deleting log entry:", e);
+    }
+}
+
+async function clearChangeHistoryLog() {
+    if (!confirm(t("confirm_clear_log"))) return;
+
+    try {
+        await chrome.storage.local.set({
+            changeHistoryLog: [],
+            changeLogClearedAt: new Date().toISOString(),
+            deletedLogEventIds: []
+        });
+
+        await renderChangeHistoryLog();
+    } catch (e) {
+        console.error("Error clearing change history:", e);
+    }
+}
+
+async function exportChangeHistoryLog() {
+    const events = await getAllChangeEvents();
+    if (events.length === 0) {
+        alert(t("export_no_data"));
+        return;
+    }
+
+    const exportData = {
+        exportDate: new Date().toISOString(),
+        totalChanges: events.length,
+        changes: events
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `price_tracker_change_history_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+

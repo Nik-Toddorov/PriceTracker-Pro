@@ -1,0 +1,2556 @@
+{
+  "cat_cybex_pallas_g3": {
+    "categoryName": "Cybex Pallas G3",
+    "items": [
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-08-20T22:10:48.796Z",
+            "value": 289.95
+          },
+          {
+            "date": "2026-08-20T22:23:06.069Z",
+            "value": 289.95
+          },
+          {
+            "date": "2026-08-20T22:23:11.592Z",
+            "value": 289.95
+          },
+          {
+            "date": "2026-08-20T22:35:50.508Z",
+            "value": 289.95
+          },
+          {
+            "date": "2026-08-20T22:36:48.677Z",
+            "value": 289.95
+          },
+          {
+            "date": "2026-08-20T22:47:48.851Z",
+            "value": 289.95
+          },
+          {
+            "date": "2026-08-21T05:51:02.012Z",
+            "value": 289.95
+          },
+          {
+            "date": "2026-08-21T06:47:37.046Z",
+            "value": 289.95
+          }
+        ],
+        "id": "item_1787263783052",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:03:53.840Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:03:53.840Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": "span.price",
+        "type": "price",
+        "url": "https://rayatoys.com/stol-za-kola-cybex-pallas-g3-i-size-plus-76-150-sm"
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-08-20T22:36:56.168Z",
+            "value": 309.95
+          },
+          {
+            "date": "2026-08-21T05:51:05.603Z",
+            "value": 289.95
+          }
+        ],
+        "id": "item_1787265404109",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:07:34.186Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:07:34.186Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": true,
+        "selector": "p.product-new-price",
+        "type": "price",
+        "url": "https://www.emag.bg/stolche-za-kola-cybex-pallas-g3-i-size-9-50kg-ocean-blue-sistema-za-montirane-isofix-14abcb/pd/DG1RM83BM/"
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-08-20T22:45:30.364Z",
+            "value": 823.56
+          },
+          {
+            "date": "2026-08-20T22:47:48.335Z",
+            "value": 823.56
+          },
+          {
+            "date": "2026-08-21T05:50:59.623Z",
+            "value": 823.56
+          },
+          {
+            "date": "2026-08-21T06:46:42.313Z",
+            "value": 823.56
+          },
+          {
+            "date": "2026-09-04T08:04:32.742Z",
+            "value": 859.92
+          },
+          {
+            "date": "2026-09-04T11:06:46.340Z",
+            "value": 851.99
+          },
+          {
+            "date": "2026-09-12T11:13:28.195Z",
+            "value": 381.71
+          },
+          {
+            "date": "2026-09-15T08:46:23.228Z",
+            "value": 383.99
+          },
+          {
+            "date": "2026-09-21T21:01:59.183Z",
+            "value": 383.32
+          },
+          {
+            "date": "2026-10-01T08:26:41.769Z",
+            "value": 385.47
+          },
+          {
+            "date": "2026-10-05T16:19:27.095Z",
+            "value": 380.87
+          },
+          {
+            "date": "2026-10-12T08:56:27.038Z",
+            "value": 386.43
+          },
+          {
+            "date": "2026-10-13T09:16:28.175Z",
+            "value": 852.87
+          }
+        ],
+        "id": "item_1787265868514",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:09:19.188Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:09:19.188Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": true,
+        "selector": "p.product-new-price",
+        "type": "price",
+        "url": "https://www.emag.bg/stolche-za-kola-cybex-gold-pallas-g3-plus-almond-beige-bezhovo-525000955/pd/D32V0Q3BM/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-08-20T22:46:10.230Z",
+            "value": 799.33
+          },
+          {
+            "date": "2026-08-20T22:47:53.576Z",
+            "value": 799.33
+          },
+          {
+            "date": "2026-08-21T05:51:06.204Z",
+            "value": 799.33
+          },
+          {
+            "date": "2026-09-04T08:07:22.911Z",
+            "value": 847.8
+          },
+          {
+            "date": "2026-09-04T11:07:47.290Z",
+            "value": 839.99
+          },
+          {
+            "date": "2026-09-20T11:20:43.190Z",
+            "value": 289.95
+          },
+          {
+            "date": "2026-10-01T08:28:06.838Z",
+            "value": 839.99
+          },
+          {
+            "date": "2026-10-08T08:06:58.170Z",
+            "value": 840.86
+          }
+        ],
+        "id": "item_1787265904079",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:10:57.191Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:10:57.191Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": true,
+        "selector": "p.product-new-price",
+        "type": "price",
+        "url": "https://www.emag.bg/stolche-za-kola-cybex-gold-pallas-g3-plus-moon-black-cheren-525000947/pd/D6GTQ53BM/"
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-08-20T22:46:51.226Z",
+            "value": 289.95
+          },
+          {
+            "date": "2026-08-20T22:47:53.335Z",
+            "value": 289.95
+          },
+          {
+            "date": "2026-08-21T05:51:07.018Z",
+            "value": 289.95
+          },
+          {
+            "date": "2026-08-21T06:46:47.222Z",
+            "value": 289.95
+          },
+          {
+            "date": "2026-09-03T11:12:35.184Z",
+            "value": 287.49
+          },
+          {
+            "date": "2026-09-09T19:41:46.173Z",
+            "value": 289.95
+          }
+        ],
+        "id": "item_1787265942751",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:05:27.267Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:05:27.267Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": true,
+        "selector": "p.product-new-price",
+        "type": "price",
+        "url": "https://www.emag.bg/stolche-za-kola-za-deca-cybex-gold-pallas-g3-plus-stone-grey-siv-525000949/pd/D8GTQ53BM/"
+      },
+      {
+        "currency": "€",
+        "discountAmount": 26,
+        "discountPercent": 10,
+        "history": [
+          {
+            "date": "2026-08-20T22:47:10.176Z",
+            "value": 763
+          },
+          {
+            "date": "2026-08-20T22:47:54.179Z",
+            "value": 763
+          },
+          {
+            "date": "2026-08-21T05:51:09.069Z",
+            "value": 763
+          },
+          {
+            "date": "2026-08-21T06:47:49.171Z",
+            "value": 763
+          },
+          {
+            "date": "2026-09-04T08:13:54.964Z",
+            "value": 763.02
+          },
+          {
+            "date": "2026-09-04T09:25:26.912Z",
+            "value": 271.56
+          },
+          {
+            "date": "2026-09-20T11:23:22.312Z",
+            "value": 259.95
+          },
+          {
+            "date": "2026-10-22T11:46:37.328Z",
+            "discountPercent": 10,
+            "isPromo": true,
+            "originalPrice": 259.95,
+            "value": 233.95
+          }
+        ],
+        "id": "item_1787265961979",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": true,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:46:37.328Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:46:37.328Z",
+        "originalPrice": 259.95,
+        "promoBadge": "-10% отстъпка с ваучер (MultiDeals1)",
+        "requiresMacro": true,
+        "selector": "p.product-new-price",
+        "type": "price",
+        "url": "https://www.emag.bg/stolche-za-kola-cybex-gold-pallas-g3-magic-black-cheren-525000943/pd/DRGTQ53BM/"
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T07:56:25.907Z",
+            "value": 303
+          },
+          {
+            "date": "2026-09-09T19:47:31.879Z",
+            "value": 292
+          },
+          {
+            "date": "2026-10-09T09:22:22.009Z",
+            "value": 286
+          }
+        ],
+        "id": "item_1788508579096",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:12:50.152Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:12:50.152Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".product-price-col",
+        "type": "price",
+        "url": "https://babymatters.bg/detsko-stolche-za-kola-cybex-pallas-g3-i-size-plus-76-150-sm-tsvyat-moon-black-11154",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T07:56:36.920Z",
+            "value": 303
+          },
+          {
+            "date": "2026-09-09T19:50:21.126Z",
+            "value": 292
+          },
+          {
+            "date": "2026-10-09T09:25:08.636Z",
+            "value": 286
+          }
+        ],
+        "id": "item_1788508587862",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:17:09.458Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:17:09.458Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".product-price-col",
+        "type": "price",
+        "url": "https://babymatters.bg/detsko-stolche-za-kola-cybex-pallas-g3-i-size-plus-76-150-sm-tsvyat-stone-grey-11155",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T07:56:46.917Z",
+            "value": 303
+          },
+          {
+            "date": "2026-09-09T19:50:58.621Z",
+            "value": 292
+          },
+          {
+            "date": "2026-10-09T09:26:33.926Z",
+            "value": 273
+          },
+          {
+            "date": "2026-10-21T10:44:55.567Z",
+            "value": 286
+          }
+        ],
+        "id": "item_1788508597732",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:13:47.724Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:13:47.724Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".product-price-col",
+        "type": "price",
+        "url": "https://babymatters.bg/detsko-stolche-za-kola-cybex-pallas-g3-i-size-plus-76-150-sm-tsvyat-ocean-blue-11156",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T07:56:52.909Z",
+            "value": 303
+          },
+          {
+            "date": "2026-09-09T19:52:31.048Z",
+            "value": 292
+          },
+          {
+            "date": "2026-10-09T09:28:40.652Z",
+            "value": 273
+          },
+          {
+            "date": "2026-10-21T10:47:41.907Z",
+            "value": 286
+          }
+        ],
+        "id": "item_1788508607103",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:16:42.309Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:16:42.309Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".product-price-col",
+        "type": "price",
+        "url": "https://babymatters.bg/detsko-stolche-za-kola-cybex-pallas-g3-i-size-plus-76-sm-tsvyat-stormy-blue-11157",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T07:57:03.916Z",
+            "value": 303
+          },
+          {
+            "date": "2026-09-09T19:53:08.480Z",
+            "value": 292
+          },
+          {
+            "date": "2026-10-09T09:29:14.450Z",
+            "value": 273
+          },
+          {
+            "date": "2026-10-21T10:50:40.154Z",
+            "value": 286
+          }
+        ],
+        "id": "item_1788508616820",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:19:21.800Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:19:21.800Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".product-price-col",
+        "type": "price",
+        "url": "https://babymatters.bg/detsko-stolche-za-kola-cybex-pallas-g3-i-size-plus-76-150-sm-bademovo-bezhovo-11158",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T07:57:20.904Z",
+            "value": 303
+          },
+          {
+            "date": "2026-09-09T19:55:59.248Z",
+            "value": 292
+          },
+          {
+            "date": "2026-10-09T09:29:57.836Z",
+            "value": 273
+          },
+          {
+            "date": "2026-10-21T10:51:54.243Z",
+            "value": 286
+          }
+        ],
+        "id": "item_1788508635301",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:20:25.551Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:20:25.551Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".product-price-col",
+        "type": "price",
+        "url": "https://babymatters.bg/detsko-stolche-za-kola-cybex-pallas-g3-i-size-plus-76-150-sm-shokoladovo-kafyavo-13603",
+        "useLowestPrice": true
+      }
+    ]
+  },
+  "cat_ds925_": {
+    "categoryName": "DS925+",
+    "items": [
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-08-21T09:57:03.739Z",
+            "value": 756.99
+          },
+          {
+            "date": "2026-09-01T10:14:07.209Z",
+            "value": 960.1
+          },
+          {
+            "date": "2026-09-01T19:21:52.173Z",
+            "value": 969.96
+          },
+          {
+            "date": "2026-09-02T08:47:27.166Z",
+            "value": 756.99
+          },
+          {
+            "date": "2026-10-01T07:33:21.217Z",
+            "value": 1050.06
+          },
+          {
+            "date": "2026-10-02T11:38:05.237Z",
+            "value": 756.99
+          }
+        ],
+        "id": "item_1787305701145",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:22:33.285Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:22:33.285Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": true,
+        "selector": "p.product-new-price",
+        "type": "price",
+        "url": "https://www.emag.bg/mrezhovo-ustrojstvo-za-syhranenie-synology-diskstation-s-procesor-amd-ryzen-v1500b-4-slota-4gb-ddr4-ds925/pd/D1M7S03BM/?ref=fav_pd-title"
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-08-26T16:18:07.402Z",
+            "value": 687
+          },
+          {
+            "date": "2026-08-26T16:24:21.176Z",
+            "value": 687.64
+          },
+          {
+            "date": "2026-08-27T19:46:02.203Z",
+            "value": 717.98
+          },
+          {
+            "date": "2026-09-04T08:17:42.917Z",
+            "value": 741.48
+          },
+          {
+            "date": "2026-09-16T13:07:35.277Z",
+            "value": 771.32
+          },
+          {
+            "date": "2026-09-23T07:19:50.171Z",
+            "value": 777.83
+          },
+          {
+            "date": "2026-09-23T13:50:51.168Z",
+            "value": 789.5
+          },
+          {
+            "date": "2026-09-25T07:53:49.185Z",
+            "value": 775.46
+          },
+          {
+            "date": "2026-10-02T07:23:57.239Z",
+            "value": 781.5
+          },
+          {
+            "date": "2026-10-08T08:29:50.120Z",
+            "value": 780.5
+          },
+          {
+            "date": "2026-10-15T08:45:05.185Z",
+            "value": 778.54
+          },
+          {
+            "date": "2026-10-15T11:27:45.188Z",
+            "value": 780.5
+          },
+          {
+            "date": "2026-10-19T19:42:52.180Z",
+            "value": 778.49
+          },
+          {
+            "date": "2026-10-20T15:23:45.177Z",
+            "value": 780.5
+          }
+        ],
+        "id": "item_1787761079171",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:23:24.201Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:23:24.201Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": true,
+        "selector": ".a-price .a-offscreen",
+        "type": "price",
+        "url": "https://www.amazon.de/-/en/SYNOLOGY-DS925-4-Bay-DiskStation-V1500B/dp/B0F43SZHWV/ref=sr_1_1?crid=3G51AJSI2J9FM&dib=eyJ2IjoiMSJ9.9HmAOJIZ3Jegd5_HVgBdwVBelQJa8OdRw7OaNV75gfhsDtghtKEViKxD3Fj57e8J8jdyYEqXhmKFhvgfWxufiknqqkUTHAC7s_uXJicYCJuUqkPc1Ao9NgJvJLssaRoczLON-Yr9PLC-Lk7m7ZwsYYS7oIqR3igpMQV2T73pDElpqc7R97wOq_fuxkcd9pfTB8DqdbpS4XUs_F9LjpUoiREmW9uSASW7BfJ2nzZIQQE.w-NvHKvHm_8IY84Rt-F4FtWghcJUFi6zaziHMvTCiZI&dib_tag=se&keywords=synology%2B925%2B&qid=1763725254&refresh=1&sprefix=synology%2B925%2B%2Caps%2C140&sr=8-1&th=1",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T12:08:04.932Z",
+            "value": 984.99
+          }
+        ],
+        "id": "item_1788523673724",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:25:08.132Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:25:08.132Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".common-price.d-flex.align-items-center",
+        "type": "price",
+        "url": "https://ardes.bg/product/synology-diskstation-ds925-ds925-493842?_gl=1*1b3o7xg*_up*MQ..&gclid=CjwKCAjwup3HBhAAEiwA7euZuhdPjdQgRD3-PU8Q0IN6wL-MGXI5KfPXFtPo-2VWiFJsvlRsNxOiShoCZWoQAvD_BwE&gbraid=0AAAAAD3-xKCUyQRZPXq2LjiBL3T_vZdlE",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T12:09:18.925Z",
+            "value": 899.99
+          },
+          {
+            "date": "2026-10-16T12:21:53.302Z",
+            "value": 999.99
+          },
+          {
+            "date": "2026-10-18T19:16:42.811Z",
+            "value": 899.99
+          }
+        ],
+        "id": "item_1788523749788",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:41:01.580Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:41:01.580Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".price-buy",
+        "type": "price",
+        "url": "https://plasico.bg/nas-ustroystvo-synology-4-bay-diskstation-ds925-13076414.html",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T12:10:30.190Z",
+            "value": 789.99
+          },
+          {
+            "date": "2026-09-18T10:58:37.349Z",
+            "value": 983.39
+          },
+          {
+            "date": "2026-09-25T08:00:30.928Z",
+            "value": 979.08
+          },
+          {
+            "date": "2026-10-01T07:37:40.265Z",
+            "value": 898.99
+          },
+          {
+            "date": "2026-10-09T10:17:11.801Z",
+            "value": 983.39
+          },
+          {
+            "date": "2026-10-12T06:50:11.527Z",
+            "value": 984.99
+          },
+          {
+            "date": "2026-10-13T08:21:25.275Z",
+            "value": 983.39
+          }
+        ],
+        "id": "item_1788523828803",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:28:43.063Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:28:43.063Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": "div.product_actions > div.actions > div.row-price",
+        "type": "price",
+        "url": "https://www.jarcomputers.com/synology-ds925-prod-nassynologyds925plus.html",
+        "useLowestPrice": true
+      }
+    ]
+  },
+  "cat_globber___deluxe": {
+    "categoryName": "Globber - Deluxe",
+    "items": [
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-08-26T08:47:31.173Z",
+            "value": 121.16
+          },
+          {
+            "date": "2026-09-04T08:19:54.908Z",
+            "value": 104.99
+          },
+          {
+            "date": "2026-09-09T11:25:33.344Z",
+            "value": 121.16
+          },
+          {
+            "date": "2026-09-12T19:37:24.707Z",
+            "value": 119.99
+          },
+          {
+            "date": "2026-09-21T10:28:45.138Z",
+            "value": 140.17
+          },
+          {
+            "date": "2026-10-01T07:40:28.835Z",
+            "value": 140
+          },
+          {
+            "date": "2026-10-02T12:59:23.433Z",
+            "value": 105.9
+          },
+          {
+            "date": "2026-10-12T07:13:18.169Z",
+            "value": 118.9
+          },
+          {
+            "date": "2026-10-19T08:12:31.961Z",
+            "value": 115.5
+          },
+          {
+            "date": "2026-10-19T10:52:36.174Z",
+            "value": 90.72
+          },
+          {
+            "date": "2026-10-19T19:49:43.745Z",
+            "value": 115.5
+          }
+        ],
+        "id": "item_1787734037537",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:31:21.420Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:31:21.420Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".price-box .special-price .price, .price-box .price",
+        "type": "price",
+        "url": "https://www.baby.bg/product/detska-trotinetka-3-v-1-globber-deluxe-flash-lights-mentova/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-08-26T08:48:03.263Z",
+            "value": 99.99
+          },
+          {
+            "date": "2026-09-09T11:28:33.209Z",
+            "value": 119.99
+          },
+          {
+            "date": "2026-09-21T10:30:15.014Z",
+            "value": 156.65
+          },
+          {
+            "date": "2026-10-01T07:40:59.133Z",
+            "value": 140
+          },
+          {
+            "date": "2026-10-02T12:56:55.461Z",
+            "value": 105.9
+          },
+          {
+            "date": "2026-10-12T06:59:58.773Z",
+            "value": 131.5
+          },
+          {
+            "date": "2026-10-19T08:13:43.335Z",
+            "value": 115.5
+          },
+          {
+            "date": "2026-10-19T09:38:35.721Z",
+            "value": 88.16
+          },
+          {
+            "date": "2026-10-19T19:51:30.463Z",
+            "value": 115.5
+          }
+        ],
+        "id": "item_1787734075201",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:27:33.587Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:27:33.587Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".price-box .special-price .price, .price-box .price",
+        "type": "price",
+        "url": "https://www.baby.bg/product/detska-trotinetka-3-v-1-globber-deluxe-flash-lights-sinya/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": 27,
+        "discountPercent": 15,
+        "history": [
+          {
+            "date": "2026-08-26T08:48:42.181Z",
+            "value": 163.56
+          },
+          {
+            "date": "2026-09-04T10:16:03.337Z",
+            "value": 0.56
+          },
+          {
+            "date": "2026-09-04T10:49:32.396Z",
+            "value": 163.56
+          },
+          {
+            "date": "2026-09-17T10:52:22.725Z",
+            "value": 152.92
+          },
+          {
+            "date": "2026-10-06T08:38:57.204Z",
+            "value": 158.29
+          },
+          {
+            "date": "2026-10-19T08:15:08.711Z",
+            "value": 152.9
+          },
+          {
+            "date": "2026-10-19T09:39:10.845Z",
+            "value": 95.74
+          },
+          {
+            "date": "2026-10-19T19:52:58.943Z",
+            "value": 152.9
+          }
+        ],
+        "id": "item_1787734112372",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": true,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:43:42.423Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:43:42.423Z",
+        "originalPrice": 179.9,
+        "promoBadge": "-15%",
+        "requiresMacro": false,
+        "selector": ".product-options",
+        "type": "price",
+        "url": "https://www.baby.bg/product/trotinetka-3-v-1-globber-go-up-deluxe-lights-360-cherna/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": 34,
+        "discountPercent": 21,
+        "history": [
+          {
+            "date": "2026-08-26T08:49:30.178Z",
+            "value": 158.45
+          },
+          {
+            "date": "2026-08-26T09:05:48.181Z",
+            "value": 45
+          },
+          {
+            "date": "2026-08-26T09:25:30.084Z",
+            "value": 118.85
+          },
+          {
+            "date": "2026-09-04T09:36:30.927Z",
+            "value": 0.85
+          },
+          {
+            "date": "2026-09-04T10:18:07.913Z",
+            "value": 0.05
+          },
+          {
+            "date": "2026-09-04T10:49:47.912Z",
+            "value": 118.85
+          },
+          {
+            "date": "2026-09-09T11:31:44.217Z",
+            "value": 139.99
+          },
+          {
+            "date": "2026-09-21T10:31:06.055Z",
+            "value": 152.92
+          },
+          {
+            "date": "2026-09-21T13:07:47.064Z",
+            "value": 151.89
+          },
+          {
+            "date": "2026-10-02T13:01:45.147Z",
+            "value": 125.9
+          },
+          {
+            "date": "2026-10-19T08:16:40.447Z",
+            "value": 122.9
+          },
+          {
+            "date": "2026-10-19T09:40:00.863Z",
+            "value": 125.9
+          }
+        ],
+        "id": "item_1787734160215",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": true,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:33:12.366Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:33:12.366Z",
+        "originalPrice": 159.9,
+        "promoBadge": "-21%",
+        "requiresMacro": false,
+        "selector": ".product-options",
+        "type": "price",
+        "url": "https://www.baby.bg/product/sgavaema-trotinetka-5-v-1-globber-go-up-deluxe-lights-360-sinya/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-08-26T09:26:28.175Z",
+            "value": 143.11
+          },
+          {
+            "date": "2026-09-04T09:37:12.924Z",
+            "value": 0.11
+          },
+          {
+            "date": "2026-09-04T10:50:09.917Z",
+            "value": 143.11
+          }
+        ],
+        "id": "item_1787736379519",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:33:59.160Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:33:59.160Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".product-options",
+        "type": "price",
+        "url": "https://www.baby.bg/product/trotinetka-3-v-1-globber-go-up-deluxe-lights-menta/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": 12.89,
+        "discountPercent": 10,
+        "history": [
+          {
+            "date": "2026-08-26T09:31:18.183Z",
+            "value": 128.9
+          },
+          {
+            "date": "2026-09-04T09:39:14.915Z",
+            "value": 0.9
+          },
+          {
+            "date": "2026-09-04T10:50:58.925Z",
+            "value": 128.9
+          },
+          {
+            "date": "2026-10-22T11:30:33.271Z",
+            "discountPercent": 10,
+            "isPromo": true,
+            "originalPrice": 128.9,
+            "value": 116.01
+          }
+        ],
+        "id": "item_1787736667955",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": true,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:30:33.271Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:30:33.271Z",
+        "originalPrice": 128.9,
+        "promoBadge": "-10% отстъпка с ваучер",
+        "requiresMacro": true,
+        "selector": "div.product-page-pricing > div.d-flex > div.pricing-block",
+        "type": "price",
+        "url": "https://www.emag.bg/trotinetka-globber-go-up-deluxe-lights-3-v-1-chervena-58x28-sm-visochina-93-sm-3-6-kg-ko4100301-0500lv-bg-001v/pd/DJJV0N3BM/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-08-26T09:31:28.176Z",
+            "value": 175.9
+          },
+          {
+            "date": "2026-09-01T10:25:04.161Z",
+            "value": 106
+          },
+          {
+            "date": "2026-09-25T08:12:13.184Z",
+            "value": 104.06
+          },
+          {
+            "date": "2026-10-05T08:35:44.082Z",
+            "value": 104.89
+          }
+        ],
+        "id": "item_1787736681162",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:32:31.306Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:32:31.306Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": true,
+        "selector": "p.product-new-price",
+        "type": "price",
+        "url": "https://www.emag.bg/trotinetka-s-roditelski-kontrol-go-up-deluxe-lights-mentova-bdi-646-706-1-0/pd/DK9GZ93BM/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": 17.89,
+        "discountPercent": 10,
+        "history": [
+          {
+            "date": "2026-08-26T09:31:46.171Z",
+            "value": 178.9
+          },
+          {
+            "date": "2026-09-04T09:40:21.960Z",
+            "value": 0.9
+          },
+          {
+            "date": "2026-09-04T10:51:19.922Z",
+            "value": 178.9
+          },
+          {
+            "date": "2026-10-22T11:40:32.356Z",
+            "discountPercent": 10,
+            "isPromo": true,
+            "originalPrice": 178.9,
+            "value": 161.01
+          }
+        ],
+        "id": "item_1787736696868",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": true,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:40:32.356Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:40:32.356Z",
+        "originalPrice": 178.9,
+        "promoBadge": "-10% отстъпка с ваучер",
+        "requiresMacro": true,
+        "selector": "div.product-page-pricing > div.d-flex > div.pricing-block",
+        "type": "price",
+        "url": "https://www.emag.bg/trotinetka-3-v-1-globber-deluxe-flash-lights-sinja-28334/pd/DNHSDWYBM/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": 17.89,
+        "discountPercent": 10,
+        "history": [
+          {
+            "date": "2026-08-26T09:32:02.167Z",
+            "value": 178.9
+          },
+          {
+            "date": "2026-09-04T09:50:32.922Z",
+            "value": 0.9
+          },
+          {
+            "date": "2026-09-04T10:57:17.922Z",
+            "value": 178.9
+          },
+          {
+            "date": "2026-10-22T11:35:21.270Z",
+            "discountPercent": 10,
+            "isPromo": true,
+            "originalPrice": 178.9,
+            "value": 161.01
+          }
+        ],
+        "id": "item_1787736711441",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": true,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:35:21.270Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:35:21.270Z",
+        "originalPrice": 178.9,
+        "promoBadge": "-10% отстъпка с ваучер",
+        "requiresMacro": true,
+        "selector": "div.product-page-pricing > div.d-flex > div.pricing-block",
+        "type": "price",
+        "url": "https://www.emag.bg/trotinetka-3-v-1-globber-deluxe-flash-lights-mentova-28318/pd/DKHSDWYBM/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": 10.55,
+        "discountPercent": 10,
+        "history": [
+          {
+            "date": "2026-08-26T09:32:38.180Z",
+            "value": 183.35
+          },
+          {
+            "date": "2026-08-28T07:55:39.265Z",
+            "value": 187.75
+          },
+          {
+            "date": "2026-08-31T06:14:46.175Z",
+            "value": 183.35
+          },
+          {
+            "date": "2026-09-01T12:34:41.156Z",
+            "value": 187.84
+          },
+          {
+            "date": "2026-09-01T22:39:28.255Z",
+            "value": 183.35
+          },
+          {
+            "date": "2026-09-04T09:51:10.920Z",
+            "value": 0.35
+          },
+          {
+            "date": "2026-09-04T10:52:06.926Z",
+            "value": 183.35
+          },
+          {
+            "date": "2026-09-09T19:05:10.180Z",
+            "value": 106
+          },
+          {
+            "date": "2026-09-23T07:42:29.196Z",
+            "value": 104.63
+          },
+          {
+            "date": "2026-10-09T08:47:51.183Z",
+            "value": 105.46
+          },
+          {
+            "date": "2026-10-22T11:41:24.271Z",
+            "discountPercent": 10,
+            "isPromo": true,
+            "originalPrice": 105.46,
+            "value": 94.91
+          }
+        ],
+        "id": "item_1787736751687",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": true,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:41:24.271Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:41:24.271Z",
+        "originalPrice": 105.46,
+        "promoBadge": "-10% отстъпка с ваучер",
+        "requiresMacro": true,
+        "selector": "div.product-page-pricing > div.d-flex > div.pricing-block",
+        "type": "price",
+        "url": "https://www.emag.bg/prohodilka-3-v-1-globber-go-up-deluxe-fantasy-lights-s-led-svetlini-sin-zelen-15-36-meseca-bdi-646-105-0/pd/DK4P8XYBM/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": 13.95,
+        "discountPercent": 6,
+        "history": [
+          {
+            "date": "2026-08-26T09:32:56.173Z",
+            "value": 212.58
+          },
+          {
+            "date": "2026-09-04T09:53:01.953Z",
+            "value": 0.58
+          },
+          {
+            "date": "2026-09-04T10:58:06.985Z",
+            "value": 212.58
+          },
+          {
+            "date": "2026-10-14T06:04:38.186Z",
+            "value": 209.23
+          }
+        ],
+        "id": "item_1787736766545",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": true,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:37:28.272Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:37:28.272Z",
+        "originalPrice": 223.18,
+        "promoBadge": "-6%",
+        "requiresMacro": true,
+        "selector": "div.product-page-pricing > div.d-flex > div.pricing-block",
+        "type": "price",
+        "url": "https://www.emag.bg/mnogofunkcionalna-trotinetka-globber-go-up-deluxe-3-rezhima-kolela-s-led-1-3-godini-10-sm-shirina-5907952157873/pd/D7L9S83BM/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "history": [
+          {
+            "date": "2026-08-26T09:33:06.166Z",
+            "value": 212.82
+          },
+          {
+            "date": "2026-09-04T09:39:42.917Z",
+            "value": 0.82
+          },
+          {
+            "date": "2026-09-04T10:58:48.916Z",
+            "value": 212.82
+          }
+        ],
+        "id": "item_1787736776829",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "lastCheckStatus": "error",
+        "lastChecked": "2026-10-22T10:45:39.318Z",
+        "lastError": "Assignment to constant variable.",
+        "lastSuccessfulCheck": "2026-10-22T09:17:37.218Z",
+        "requiresMacro": true,
+        "selector": "div.product-page-pricing > div.d-flex > div.pricing-block",
+        "type": "price",
+        "url": "https://www.emag.bg/trotinetka-globber-go-up-deluxe-lights-3-kolela-sgyvaema-sys-svetodiodi-siv-sin-za-deca-15-50-kg-ko4100301-0501lv-hu-001v/pd/DGRL0N3BM/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": 24.62,
+        "discountPercent": 10,
+        "history": [
+          {
+            "date": "2026-08-26T09:33:38.179Z",
+            "value": 246.23
+          },
+          {
+            "date": "2026-09-04T09:56:06.930Z",
+            "value": 0.23
+          },
+          {
+            "date": "2026-09-04T10:58:28.926Z",
+            "value": 246.23
+          },
+          {
+            "date": "2026-10-22T11:42:26.282Z",
+            "discountPercent": 10,
+            "isPromo": true,
+            "originalPrice": 246.23,
+            "value": 221.61
+          }
+        ],
+        "id": "item_1787736810241",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": true,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:42:26.282Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:42:26.282Z",
+        "originalPrice": 246.23,
+        "promoBadge": "-10% отстъпка с ваучер",
+        "requiresMacro": true,
+        "selector": "div.product-page-pricing > div.d-flex > div.pricing-block",
+        "type": "price",
+        "url": "https://www.emag.bg/trotinetka-globber-go-up-deluxe-lights-3-kolela-sys-sistema-za-sgyvane-cvjat-mat-za-deca-70-130-sm-4895224403463/pd/DJYKWGYBM/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "history": [
+          {
+            "date": "2026-08-26T09:33:53.219Z",
+            "value": 279.84
+          },
+          {
+            "date": "2026-09-04T09:59:01.912Z",
+            "value": 0.84
+          },
+          {
+            "date": "2026-09-04T10:57:54.927Z",
+            "value": 279.84
+          }
+        ],
+        "id": "item_1787736827356",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "lastCheckStatus": "error",
+        "lastChecked": "2026-10-22T10:43:07.240Z",
+        "lastError": "Assignment to constant variable.",
+        "lastSuccessfulCheck": "2026-10-22T09:14:07.181Z",
+        "requiresMacro": true,
+        "selector": "div.product-page-pricing > div.d-flex > div.pricing-block",
+        "type": "price",
+        "url": "https://www.emag.bg/trotinetka-3-v-1-globber-go-up-deluxe-lights-ekologichna-s-led-svetlini-reguliruema-mnogocvetna-15-36-meseca-i-3-9-godini-5907952848634/pd/DV6SS83BM/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": 43.46,
+        "discountPercent": 10,
+        "history": [
+          {
+            "date": "2026-08-26T09:34:32.143Z",
+            "value": 432.79
+          },
+          {
+            "date": "2026-09-04T09:59:36.920Z",
+            "value": 0.79
+          },
+          {
+            "date": "2026-09-04T10:56:41.924Z",
+            "value": 432.79
+          },
+          {
+            "date": "2026-10-06T06:19:12.190Z",
+            "value": 434.55
+          },
+          {
+            "date": "2026-10-22T11:43:51.274Z",
+            "discountPercent": 10,
+            "isPromo": true,
+            "originalPrice": 434.55,
+            "value": 391.09
+          }
+        ],
+        "id": "item_1787736864250",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": true,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:43:51.274Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:43:51.274Z",
+        "originalPrice": 434.55,
+        "promoBadge": "-10% отстъпка с ваучер",
+        "requiresMacro": true,
+        "selector": ".product-page-pricing.product-highlight",
+        "type": "price",
+        "url": "https://www.emag.bg/globber-go-up-deluxe-lights-eco-360-sgyvaema-trotinetka-s-3-kolela-sys-sedalka-i-360-modul-za-deca-ot-15-meseca-do-6-godini-blueberry-hailife600007070/pd/DBJ0ZC3BM/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": 49.4,
+        "discountPercent": 30,
+        "history": [
+          {
+            "date": "2026-08-27T19:22:58.665Z",
+            "value": 121.16
+          },
+          {
+            "date": "2026-09-04T07:33:03.287Z",
+            "value": 104.99
+          },
+          {
+            "date": "2026-09-04T10:25:36.956Z",
+            "value": 0.99
+          },
+          {
+            "date": "2026-09-04T10:55:22.820Z",
+            "value": 104.99
+          },
+          {
+            "date": "2026-09-09T19:19:12.249Z",
+            "value": 121.16
+          },
+          {
+            "date": "2026-09-12T20:03:22.955Z",
+            "value": 119.99
+          },
+          {
+            "date": "2026-09-21T10:15:15.757Z",
+            "value": 140.17
+          },
+          {
+            "date": "2026-10-01T07:57:21.444Z",
+            "value": 140
+          },
+          {
+            "date": "2026-10-02T13:21:43.144Z",
+            "value": 105.9
+          },
+          {
+            "date": "2026-10-12T07:53:03.808Z",
+            "value": 118.9
+          },
+          {
+            "date": "2026-10-19T08:47:13.379Z",
+            "value": 115.5
+          }
+        ],
+        "id": "item_1787858567330",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": true,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:46:40.000Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:46:40.000Z",
+        "originalPrice": 164.9,
+        "promoBadge": "-30%",
+        "requiresMacro": false,
+        "selector": ".price-box .price, p.special-price .price",
+        "type": "price",
+        "url": "https://www.ozone.bg/product/sgavaema-trotinetka-globber-deluxe-flash-lights-mentova/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-08-27T19:23:16.174Z",
+            "value": 99.99
+          },
+          {
+            "date": "2026-09-04T10:00:12.946Z",
+            "value": 0.99
+          },
+          {
+            "date": "2026-09-04T10:55:00.594Z",
+            "value": 99.99
+          },
+          {
+            "date": "2026-09-09T19:22:00.832Z",
+            "value": 119.99
+          },
+          {
+            "date": "2026-09-21T10:39:00.628Z",
+            "value": 156.65
+          },
+          {
+            "date": "2026-09-25T12:49:44.305Z",
+            "value": 148.49
+          },
+          {
+            "date": "2026-10-01T08:03:23.582Z",
+            "value": 140
+          },
+          {
+            "date": "2026-10-02T13:12:39.924Z",
+            "value": 105.9
+          },
+          {
+            "date": "2026-10-12T07:53:45.031Z",
+            "value": 131.5
+          },
+          {
+            "date": "2026-10-19T08:52:39.698Z",
+            "value": 115.5
+          },
+          {
+            "date": "2026-10-22T11:46:22.864Z",
+            "value": 164.9
+          }
+        ],
+        "id": "item_1787858583746",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:46:22.864Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:46:22.864Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".price-box .price, p.special-price .price",
+        "type": "price",
+        "url": "https://www.ozone.bg/product/sgavaema-trotinetka-globber-deluxe-flash-lights-sinya/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "history": [
+          {
+            "date": "2026-08-27T19:23:36.181Z",
+            "value": 118.85
+          },
+          {
+            "date": "2026-09-04T10:13:28.396Z",
+            "value": 0.85
+          },
+          {
+            "date": "2026-09-04T10:53:56.258Z",
+            "value": 118.85
+          },
+          {
+            "date": "2026-09-09T19:23:08.209Z",
+            "value": 139.99
+          },
+          {
+            "date": "2026-09-21T10:45:43.694Z",
+            "value": 152.92
+          },
+          {
+            "date": "2026-09-21T13:27:40.419Z",
+            "value": 151.89
+          },
+          {
+            "date": "2026-10-02T12:29:35.179Z",
+            "value": 125.9
+          },
+          {
+            "date": "2026-10-19T08:50:45.021Z",
+            "value": 159.9
+          }
+        ],
+        "id": "item_1787858603403",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "lastCheckStatus": "error",
+        "lastChecked": "2026-10-22T10:42:16.273Z",
+        "lastError": "Assignment to constant variable.",
+        "lastSuccessfulCheck": "2026-10-22T09:12:39.477Z",
+        "requiresMacro": false,
+        "selector": "div#product-options-813319 > div.price-box",
+        "type": "price",
+        "url": "https://www.ozone.bg/product/sgavaema-trotinetka-5-v-1-globber-go-up-deluxe-lights-360-sinya/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": 27,
+        "discountPercent": 15,
+        "history": [
+          {
+            "date": "2026-08-27T19:24:08.168Z",
+            "value": 163.56
+          },
+          {
+            "date": "2026-09-04T10:27:43.956Z",
+            "value": 0.56
+          },
+          {
+            "date": "2026-09-04T10:53:15.457Z",
+            "value": 163.56
+          },
+          {
+            "date": "2026-09-17T11:28:27.087Z",
+            "value": 152.92
+          },
+          {
+            "date": "2026-10-06T09:11:02.142Z",
+            "value": 158.29
+          },
+          {
+            "date": "2026-10-19T08:58:10.701Z",
+            "value": 152.9
+          }
+        ],
+        "id": "item_1787858634702",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": true,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:52:16.114Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:52:16.114Z",
+        "originalPrice": 179.9,
+        "promoBadge": "-15%",
+        "requiresMacro": false,
+        "selector": ".price-box .price, p.special-price .price",
+        "type": "price",
+        "url": "https://www.ozone.bg/product/trotinetka-3-v-1-globber-go-up-deluxe-lights-360-cherna/",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-08-27T19:24:35.186Z",
+            "value": 143.11
+          },
+          {
+            "date": "2026-09-04T10:28:40.149Z",
+            "value": 0.11
+          },
+          {
+            "date": "2026-09-04T10:53:01.213Z",
+            "value": 143.11
+          }
+        ],
+        "id": "item_1787858665100",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:15:33.859Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:15:33.859Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".price-box .price, p.special-price .price",
+        "type": "price",
+        "url": "https://www.ozone.bg/product/trotinetka-3-v-1-globber-go-up-deluxe-lights-menta/",
+        "useLowestPrice": true
+      }
+    ]
+  },
+  "cat_pax_norte": {
+    "categoryName": "PAX Norte",
+    "items": [
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-08-20T22:47:53.211Z",
+            "value": 177.32
+          },
+          {
+            "date": "2026-08-21T05:51:06.126Z",
+            "value": 177.32
+          },
+          {
+            "date": "2026-08-21T06:53:06.164Z",
+            "value": 177.32
+          }
+        ],
+        "id": "item_1787266051599",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:48:54.202Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:48:54.202Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": true,
+        "selector": "p.product-new-price",
+        "type": "price",
+        "url": "https://www.emag.bg/ventilator-za-banja-pax-norte-bezzhichen-vyzmozhnost-za-upravlenie-chrez-telefon-tajmer-senzor-za-vlazhnost-svetlinen-senzor-konsumacija-4-w-110-m3-ch-maksimalno-20-db-a-proizvedeno-v-shvecija-1560-1/pd/DN3W83BBM/"
+      },
+      {
+        "currency": "€",
+        "discountAmount": 32,
+        "discountPercent": 18,
+        "history": [
+          {
+            "date": "2026-09-04T10:06:42.922Z",
+            "value": 142
+          },
+          {
+            "date": "2026-10-02T09:24:57.254Z",
+            "value": 135.99
+          },
+          {
+            "date": "2026-10-22T08:07:29.459Z",
+            "value": 142
+          }
+        ],
+        "id": "item_1788516397299",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": true,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:02:59.917Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:02:59.917Z",
+        "originalPrice": 174,
+        "promoBadge": "-18%",
+        "requiresMacro": false,
+        "selector": "div.col-md-6 > div.product-details > div.product-price",
+        "type": "price",
+        "url": "https://baniastil.com/%D0%B2%D0%B5%D0%BD%D1%82%D0%B8%D0%BB%D0%B0%D1%82%D0%BE%D1%80%D0%B8-%D0%B7%D0%B0-%D0%B1%D0%B0%D0%BD%D1%8F/pax/%D0%B2%D0%B5%D0%BD%D1%82%D0%B8%D0%BB%D0%B0%D1%82%D0%BE%D1%80-%D0%B7%D0%B0-%D0%B1%D0%B0%D0%BD%D1%8F-pax-norte-21067.html?_gl=1*riwek8*_up*MQ..*_gs*MQ..&gclid=Cj0KCQjw2OnUBhC2ARIsACKyfaHsRK9cCebIlnzvfFSBjFx9rs0r2LxZ15gQ2o-FYAsX554ZmiRSNzAaAjvcEALw_wcB&gbraid=0AAAABCcNZOFQY03_h_RuAYofAGlAVsGsa",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T10:07:02.947Z",
+            "value": 150.83
+          },
+          {
+            "date": "2026-10-09T09:43:07.414Z",
+            "value": 186
+          }
+        ],
+        "id": "item_1788516417611",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:57:51.834Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:57:51.834Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": "div.col-md-6 > div.product-details > div.product-price",
+        "type": "price",
+        "url": "https://baniastil.com/%D0%B2%D0%B5%D0%BD%D1%82%D0%B8%D0%BB%D0%B0%D1%82%D0%BE%D1%80%D0%B8-%D0%B7%D0%B0-%D0%B1%D0%B0%D0%BD%D1%8F/pax/%D0%B2%D0%B5%D0%BD%D1%82%D0%B8%D0%BB%D0%B0%D1%82%D0%BE%D1%80-%D0%B7%D0%B0-%D0%B1%D0%B0%D0%BD%D1%8F-pax-norte-%D1%87%D0%B5%D1%80%D0%B5%D0%BD-21068.html?_gl=1*riwek8*_up*MQ..*_gs*MQ..&gclid=Cj0KCQjw2OnUBhC2ARIsACKyfaHsRK9cCebIlnzvfFSBjFx9rs0r2LxZ15gQ2o-FYAsX554ZmiRSNzAaAjvcEALw_wcB&gbraid=0AAAABCcNZOFQY03_h_RuAYofAGlAVsGsa",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T10:07:35.919Z",
+            "value": 174
+          }
+        ],
+        "id": "item_1788516447904",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:00:36.385Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:00:36.385Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".product__content__list",
+        "type": "price",
+        "url": "https://pax.bg/bg/product/pax-norte",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T10:08:59.923Z",
+            "value": 147
+          },
+          {
+            "date": "2026-10-01T08:49:30.562Z",
+            "value": 13.6
+          },
+          {
+            "date": "2026-10-01T08:51:26.837Z",
+            "value": 135.99
+          },
+          {
+            "date": "2026-10-22T08:00:54.198Z",
+            "value": 147
+          }
+        ],
+        "id": "item_1788516527256",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:53:54.411Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:53:54.411Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".pdp-tools__start",
+        "type": "price",
+        "url": "https://praktiker.bg/bg/Ventilatori-za-banya/VENTILATOR-ZA-BANYa-PAX-NORTE/p/464400",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T10:09:15.998Z",
+            "value": 155
+          },
+          {
+            "date": "2026-09-16T12:39:56.009Z",
+            "value": 178.9
+          }
+        ],
+        "id": "item_1788516543809",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:54:51.469Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:54:51.469Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".pdp-tools.mt-l",
+        "type": "price",
+        "url": "https://praktiker.bg/bg/Ventilatori-za-banya/VENTILATOR-ZA-BANYa-PAX-NORTE---BLACK/p/836239",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T10:09:51.912Z",
+            "value": 186
+          },
+          {
+            "date": "2026-10-09T09:49:39.285Z",
+            "value": 148.8
+          },
+          {
+            "date": "2026-10-12T08:10:04.676Z",
+            "value": 186
+          }
+        ],
+        "id": "item_1788516583036",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T11:47:55.088Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T11:47:55.088Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".flex.gap-2.pb-3",
+        "type": "price",
+        "url": "https://praktis.bg/smart-ventilator-za-banya-pax-norte-byal-o100-120mm-4w?srsltid=AfmBOopwb8XDmLV5heffWAT6WVClwzvstEvICw1rHM-JL30ILKP9tmFk",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T10:10:25.920Z",
+            "value": 196
+          },
+          {
+            "date": "2026-10-09T09:50:37.938Z",
+            "value": 156.8
+          },
+          {
+            "date": "2026-10-12T08:12:10.900Z",
+            "value": 196
+          }
+        ],
+        "id": "item_1788516616877",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:17:41.141Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:17:41.141Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".flex.gap-2.pb-3",
+        "type": "price",
+        "url": "https://praktis.bg/smart-ventilator-za-banya-pax-norte-cheren-o100-120mm-4w",
+        "useLowestPrice": true
+      }
+    ]
+  },
+  "cat_rowenta_x_force_flex_14_": {
+    "categoryName": "ROWENTA X-FORCE FLEX 14+",
+    "items": [
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T08:00:48.970Z",
+            "value": 391
+          },
+          {
+            "date": "2026-09-17T05:39:16.712Z",
+            "value": 389
+          },
+          {
+            "date": "2026-09-19T20:46:08.543Z",
+            "value": 448
+          },
+          {
+            "date": "2026-09-24T09:23:53.826Z",
+            "value": 433
+          },
+          {
+            "date": "2026-09-25T09:12:53.651Z",
+            "value": 428
+          },
+          {
+            "date": "2026-10-01T07:21:01.910Z",
+            "value": 400
+          },
+          {
+            "date": "2026-10-05T08:05:18.246Z",
+            "value": 405
+          },
+          {
+            "date": "2026-10-06T05:22:52.643Z",
+            "value": 448
+          },
+          {
+            "date": "2026-10-07T12:39:29.444Z",
+            "value": 426
+          }
+        ],
+        "id": "item_1788508838024",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:23:21.210Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:23:21.210Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".product-price-col",
+        "type": "price",
+        "url": "https://babymatters.bg/vertikalna-prahosmukachka-rowenta-x-force-flex-14-60-aqua-rh99c3wo-480w-200aw-70-min-flex-prahosmukachka-i-izmivane-sivo-sinya-11638",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T08:01:21.920Z",
+            "value": 424
+          },
+          {
+            "date": "2026-09-15T23:38:22.586Z",
+            "value": 411
+          },
+          {
+            "date": "2026-09-17T06:51:36.324Z",
+            "value": 368
+          },
+          {
+            "date": "2026-09-19T20:46:39.986Z",
+            "value": 424
+          }
+        ],
+        "id": "item_1788508876117",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:25:03.401Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:25:03.401Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".product-price-col",
+        "type": "price",
+        "url": "https://babymatters.bg/vertikalen-aspirator-rowenta-x-force-flex-14-60-rh9958wa-480w-200aw-70-min-flex-care-animal-black-gray-11637",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T08:01:34.920Z",
+            "value": 500
+          },
+          {
+            "date": "2026-09-09T19:30:37.628Z",
+            "value": 509
+          },
+          {
+            "date": "2026-09-19T20:47:19.609Z",
+            "value": 507
+          },
+          {
+            "date": "2026-09-23T07:46:41.427Z",
+            "value": 513
+          },
+          {
+            "date": "2026-10-05T09:09:18.091Z",
+            "value": 502
+          },
+          {
+            "date": "2026-10-06T06:40:53.465Z",
+            "value": 530
+          },
+          {
+            "date": "2026-10-09T09:56:57.720Z",
+            "value": 539
+          }
+        ],
+        "id": "item_1788508887608",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:20:11.714Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:20:11.714Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".product-price-col",
+        "type": "price",
+        "url": "https://babymatters.bg/vertikalen-aspirator-rowenta-x-force-flex-15-60-rh99f1wo-520w-230aw-80-min-flex-animals-care-black-brown-11636",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T08:01:45.917Z",
+            "value": 519
+          },
+          {
+            "date": "2026-09-19T20:49:05.631Z",
+            "value": 461
+          },
+          {
+            "date": "2026-09-23T06:31:55.241Z",
+            "value": 454
+          },
+          {
+            "date": "2026-09-25T08:37:58.977Z",
+            "value": 519
+          },
+          {
+            "date": "2026-10-15T22:56:39.248Z",
+            "value": 520
+          },
+          {
+            "date": "2026-10-16T08:30:05.350Z",
+            "value": 519
+          },
+          {
+            "date": "2026-10-18T22:48:27.356Z",
+            "value": 520
+          },
+          {
+            "date": "2026-10-19T08:29:51.477Z",
+            "value": 519
+          }
+        ],
+        "id": "item_1788508900140",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:26:26.923Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:26:26.923Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".product-price-col",
+        "type": "price",
+        "url": "https://babymatters.bg/vertikalen-aspirator-rowenta-x-force-flex-14-80-animal-rh9b74wo-670w-240aw-90-min-flex-animal-care-cheren-kafyav-11634",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T08:01:57.909Z",
+            "value": 530
+          }
+        ],
+        "id": "item_1788508911038",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:22:23.264Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:22:23.264Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".product-purchase-panel.product-purchase-panel-no-payment-options",
+        "type": "price",
+        "url": "https://babymatters.bg/vertikalna-prahosmukachka-rowenta-x-force-flex-15-60-animal-rh99f3wo-550w-230aw-160-min-flex-animal-care-cherno-kafyava-11631",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T08:02:08.947Z",
+            "value": 623
+          },
+          {
+            "date": "2026-09-09T19:31:37.201Z",
+            "value": 626
+          },
+          {
+            "date": "2026-09-17T06:54:34.188Z",
+            "value": 584
+          },
+          {
+            "date": "2026-09-19T19:10:38.775Z",
+            "value": 623
+          },
+          {
+            "date": "2026-09-23T06:36:03.395Z",
+            "value": 584
+          }
+        ],
+        "id": "item_1788508919550",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:28:41.383Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:28:41.383Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".product-price-col",
+        "type": "price",
+        "url": "https://babymatters.bg/vertikalna-prahosmukachka-rowenta-x-force-flex-15-60-aqua-rh99g3wo-520w-245aw-160-min-flex-vacuum-and-wash-care-animals-11632",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "discountAmount": null,
+        "discountPercent": null,
+        "history": [
+          {
+            "date": "2026-09-04T08:02:15.369Z",
+            "value": 649
+          },
+          {
+            "date": "2026-09-12T11:07:33.485Z",
+            "value": 606
+          },
+          {
+            "date": "2026-09-25T08:42:23.334Z",
+            "value": 649
+          },
+          {
+            "date": "2026-10-01T08:54:59.418Z",
+            "value": 606
+          },
+          {
+            "date": "2026-10-05T09:17:18.810Z",
+            "value": 649
+          }
+        ],
+        "id": "item_1788508929137",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "isPromo": false,
+        "lastCheckStatus": "success",
+        "lastChecked": "2026-10-22T10:30:24.236Z",
+        "lastError": null,
+        "lastSuccessfulCheck": "2026-10-22T10:30:24.236Z",
+        "originalPrice": null,
+        "promoBadge": null,
+        "requiresMacro": false,
+        "selector": ".product-price-col",
+        "type": "price",
+        "url": "https://babymatters.bg/vertikalen-aspirator-rowenta-x-force-flex-16-60-aqua-rh9cd9e0-780w-315-aw-120-min-tehnologiya-flex-care-animal-pink-11630",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "history": [
+          {
+            "date": "2026-09-04T08:05:24.915Z",
+            "value": 45
+          },
+          {
+            "date": "2026-09-04T08:06:27.909Z",
+            "value": 329.99
+          },
+          {
+            "date": "2026-09-09T20:14:32.099Z",
+            "value": 509
+          },
+          {
+            "date": "2026-09-14T13:19:03.570Z",
+            "value": 326
+          },
+          {
+            "date": "2026-09-15T11:03:22.160Z",
+            "value": 419
+          },
+          {
+            "date": "2026-09-23T10:17:55.781Z",
+            "value": 502
+          },
+          {
+            "date": "2026-10-01T08:56:37.007Z",
+            "value": 537
+          },
+          {
+            "date": "2026-10-20T09:24:38.449Z",
+            "value": 715
+          }
+        ],
+        "id": "item_1788509114292",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "lastCheckStatus": "error",
+        "lastChecked": "2026-10-22T10:32:24.394Z",
+        "lastError": "Could not establish connection. Receiving end does not exist.",
+        "lastSuccessfulCheck": "2026-10-22T09:03:38.943Z",
+        "requiresMacro": false,
+        "selector": "sd-product-info.is-theme-dark > div.c__price-block > sd-price",
+        "type": "price",
+        "url": "https://www.tefal.bg/p/%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%84%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D0%BE%D0%BD%D0%B0%D0%BB%D0%BD%D0%B0-%D0%B2%D0%B5%D1%80%D1%82%D0%B8%D0%BA%D0%B0%D0%BB%D0%BD%D0%B0-%D0%BF%D1%80%D0%B0%D1%85%D0%BE%D1%81%D0%BC%D1%83%D0%BA%D0%B0%D1%87%D0%BA%D0%B0-rowenta-x-force-flex-1560-handstick/2211401071",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "history": [
+          {
+            "date": "2026-09-04T09:44:56.929Z",
+            "value": 399
+          },
+          {
+            "date": "2026-09-24T10:29:09.926Z",
+            "value": 474.99
+          },
+          {
+            "date": "2026-10-01T07:47:58.188Z",
+            "value": 478.8
+          }
+        ],
+        "id": "item_1788515085269",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "lastCheckStatus": "error",
+        "lastChecked": "2026-10-22T10:33:07.414Z",
+        "lastError": "Could not establish connection. Receiving end does not exist.",
+        "lastSuccessfulCheck": "2026-10-22T09:05:15.936Z",
+        "requiresMacro": false,
+        "selector": "div.c__product-info > sd-product-info.is-theme-dark > div.c__price-block",
+        "type": "price",
+        "url": "https://www.tefal.bg/p/x-force-flex-1480-animal-%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%84%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D0%BE%D0%BD%D0%B0%D0%BB%D0%BD%D0%B0-%D0%BF%D1%80%D0%B0%D1%85%D0%BE%D1%81%D0%BC%D1%83%D0%BA%D0%B0%D1%87%D0%BA%D0%B0-%D0%B4%D0%BE-240-air-watts-%D0%B4%D0%BE-1-%D1%87-30-%D0%BC%D0%B8%D0%BD/2211401333",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "history": [
+          {
+            "date": "2026-09-04T09:45:27.007Z",
+            "value": 419
+          },
+          {
+            "date": "2026-09-12T12:16:19.124Z",
+            "value": 422
+          },
+          {
+            "date": "2026-09-14T13:21:52.852Z",
+            "value": 350
+          },
+          {
+            "date": "2026-09-15T09:45:43.427Z",
+            "value": 437
+          },
+          {
+            "date": "2026-09-23T10:24:05.484Z",
+            "value": 529
+          },
+          {
+            "date": "2026-10-12T09:50:36.807Z",
+            "value": 389.99
+          }
+        ],
+        "id": "item_1788515114826",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "lastCheckStatus": "error",
+        "lastChecked": "2026-10-22T10:33:53.671Z",
+        "lastError": "Could not establish connection. Receiving end does not exist.",
+        "lastSuccessfulCheck": "2026-10-22T09:07:14.970Z",
+        "requiresMacro": false,
+        "selector": "div.c__product-info > sd-product-info.is-theme-dark > div.c__price-block",
+        "type": "price",
+        "url": "https://www.tefal.bg/p/x-force-flex-1480-aqua-%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%84%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D0%BE%D0%BD%D0%B0%D0%BB%D0%BD%D0%B0-%D0%BF%D1%80%D0%B0%D1%85%D0%BE%D1%81%D0%BC%D1%83%D0%BA%D0%B0%D1%87%D0%BA%D0%B0-%D0%B4%D0%BE-240-air-watts/2211401335",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "history": [
+          {
+            "date": "2026-09-04T09:45:38.957Z",
+            "value": 479
+          },
+          {
+            "date": "2026-09-09T20:16:50.484Z",
+            "value": 549
+          },
+          {
+            "date": "2026-09-12T11:05:07.625Z",
+            "value": 526.9
+          },
+          {
+            "date": "2026-09-14T12:56:15.254Z",
+            "value": 479
+          },
+          {
+            "date": "2026-09-15T09:47:17.974Z",
+            "value": 599
+          },
+          {
+            "date": "2026-09-23T09:26:34.641Z",
+            "value": 613.55
+          },
+          {
+            "date": "2026-09-24T10:31:49.185Z",
+            "value": 459
+          },
+          {
+            "date": "2026-10-01T07:30:39.749Z",
+            "value": 549
+          },
+          {
+            "date": "2026-10-01T10:21:25.062Z",
+            "value": 459
+          },
+          {
+            "date": "2026-10-06T08:21:57.330Z",
+            "value": 613.55
+          },
+          {
+            "date": "2026-10-07T12:53:26.518Z",
+            "value": 458.99
+          },
+          {
+            "date": "2026-10-12T09:53:56.873Z",
+            "value": 599
+          },
+          {
+            "date": "2026-10-13T10:14:22.448Z",
+            "value": 458.99
+          },
+          {
+            "date": "2026-10-19T11:17:12.381Z",
+            "value": 599
+          }
+        ],
+        "id": "item_1788515127976",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "lastCheckStatus": "error",
+        "lastChecked": "2026-10-22T10:35:37.860Z",
+        "lastError": "Could not establish connection. Receiving end does not exist.",
+        "lastSuccessfulCheck": "2026-10-22T09:09:00.303Z",
+        "requiresMacro": false,
+        "selector": "div.c__product-info > sd-product-info.is-theme-dark > div.c__price-block",
+        "type": "price",
+        "url": "https://www.tefal.bg/p/x-force-flex-1660-animal-%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%84%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D0%BE%D0%BD%D0%B0%D0%BB%D0%BD%D0%B0-%D0%B1%D0%B5%D0%B7%D0%BA%D0%B0%D0%B1%D0%B5%D0%BB%D0%BD%D0%B0-%D0%BF%D1%80%D0%B0%D1%85%D0%BE%D1%81%D0%BC%D1%83%D0%BA%D0%B0%D1%87%D0%BA%D0%B0-315-aw/2211401421",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "history": [
+          {
+            "date": "2026-09-04T10:12:06.920Z",
+            "value": 549.99
+          },
+          {
+            "date": "2026-10-01T07:51:56.555Z",
+            "value": 820
+          }
+        ],
+        "id": "item_1788516002337",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "lastCheckStatus": "error",
+        "lastChecked": "2026-10-22T10:37:18.010Z",
+        "lastError": "Could not establish connection. Receiving end does not exist.",
+        "lastSuccessfulCheck": "2026-10-22T09:09:40.073Z",
+        "requiresMacro": false,
+        "selector": "div.c__product-info > sd-product-info.is-theme-dark > div.c__price-block",
+        "type": "price",
+        "url": "https://www.tefal.bg/p/x-force-flex-1660-animal-aqua-%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%84%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D0%BE%D0%BD%D0%B0%D0%BB%D0%BD%D0%B0-%D0%B1%D0%B5%D0%B7%D0%BA%D0%B0%D0%B1%D0%B5%D0%BB%D0%BD%D0%B0-%D0%BF%D1%80%D0%B0%D1%85%D0%BE%D1%81%D0%BC%D1%83%D0%BA%D0%B0%D1%87%D0%BA%D0%B0-315-aw/2211401420",
+        "useLowestPrice": true
+      },
+      {
+        "currency": "€",
+        "history": [
+          {
+            "date": "2026-09-04T12:12:13.585Z",
+            "value": 289.99
+          },
+          {
+            "date": "2026-09-23T07:51:37.810Z",
+            "value": 379.99
+          }
+        ],
+        "id": "item_1788523927431",
+        "intervalJitter": 5,
+        "intervalMinutes": 60,
+        "lastCheckStatus": "error",
+        "lastChecked": "2026-10-22T10:37:57.643Z",
+        "lastError": "Could not establish connection. Receiving end does not exist.",
+        "lastSuccessfulCheck": "2026-10-22T09:10:37.190Z",
+        "requiresMacro": false,
+        "selector": ".product-block.product-block--price",
+        "type": "price",
+        "url": "https://elaria.bg/products/vertikalna-prahosmukachka-rowenta-x-force-flex-15-60-rh99f1?variant=56013089735035",
+        "useLowestPrice": true
+      }
+    ]
+  }
+}

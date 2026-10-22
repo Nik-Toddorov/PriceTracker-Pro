@@ -11,18 +11,82 @@ PriceTracker Pro is a powerful browser extension (for Google Chrome, Microsoft E
 ## ✨ Features
 
 - **Automated Background Tracking**: Periodically checks prices at custom intervals (e.g. every 60 minutes) with randomized jitter to prevent bot detection.
-- **Smart Promotional Price Extraction**: Automatically extracts the lowest active promotional price when containers include both old/strikethrough and discounted prices.
-- **Visual Element Picker**: Live, interactive on-page element selector with DOM tree inspection (3 levels up, 2 levels down) and CSS selector generation.
+- **Advanced Promotion & Discount Detection**: Detects and extracts not only current prices, but also original regular prices, discount percentages (`-XX%`), savings amounts, and promotional badges (e.g. *Genius*, *Promo Code*, *Special Price*, *Sale*).
+- **Domain-Tailored Smart Rules & JSON-LD Fallback**: Pre-configured resilient extraction rules for 15+ major eCommerce platforms (eMag, Ozone, Amazon, BabyMatters, Baby.bg, Ardes, Plasico, Jar Computers, Rowenta, Tefal, Praktiker, Praktis, Raya Toys, BaniaStil, Pax, Elaria/Shopify) plus universal Schema.org JSON-LD and OpenGraph fallbacks.
+- **Automatic Self-Healing & 1-Click Selector Optimizer**: Automatically detects brittle selectors (deep 10+ level `:nth-of-type` chains or dynamic product IDs) and repairs them on the fly, with a built-in "⚡ Optimize Selectors" tool to upgrade existing databases in 1 click.
+- **Promotion Filters & Badges**: 1-click filter toggle in both Popup and Options (`[ All Items ]` / `[ 🔥 On Promotion only ]`) with eye-catching promo badges, strikethrough regular prices, and savings tags (`Save 40.00 €`).
+- **Visual Element Picker**: Live, interactive on-page element selector with DOM tree inspection (3 levels up, 2 levels down), live price and discount preview, and resilient CSS selector generation.
 - **Anti-Bot & Human Behavior Simulation**: Randomized Bezier mouse movements and scrolling macros for protected e-commerce sites (Amazon, eMAG).
 - **Duplicate & Overlap Scanner**: Intelligent URL normalization (stripping tracking query params and hashes) to detect and manage duplicate trackers or overlapping selectors.
 - **Interactive Price History Charts**: Visual price trend graphs powered by Chart.js for individual items and categories.
 - **Google Drive Cloud Sync**: Secure backup and restore for all tracked items and preferences via the Google Drive AppData folder.
 - **Chronological Change History & Audit Timeline**: Dedicated management tab logging every price drop, price increase, and text change with before-and-after values, percentages, visual word-level text diffs, statistics, search/filtering, and JSON export.
-- **Audio & Push Notifications**: Instant desktop and sound alerts when a price drop or text update is detected.
+- **Audio & Push Notifications**: Instant desktop and sound alerts when a price drop, promotion, or text update is detected.
 - **Dark Mode & Multilingual**: Supports dark/light themes (Google Material 3 palette) and multiple languages (English and Bulgarian).
 - **Automated CI/CD & Packaging**: GitHub Actions workflow that validates manifest and syntax, packaging production-ready extension ZIP releases automatically.
 
 ## 📝 Changelog
+
+- **Feature / Windows Desktop Notification Event Navigation & Auto-Scroll Highlight**:
+  - **Notification-to-Event Linkage**: Assigned structured notification IDs (`pt_notif::{itemId}::{eventId}::{timestamp}`) linking every desktop alert to its specific entry in `changeHistoryLog`.
+  - **Direct Desktop Notification Routing**: Clicking on any Windows notification directly opens the options page and activates the **Change History** tab (`tab-history-log`), seamlessly handling both newly opened tabs and already open/focused options pages via runtime messaging and storage sync.
+  - **Smart Filter Reset & Smooth Auto-Scroll**: Clears active search or category/type filters to guarantee the target event is rendered in the DOM, then smoothly scrolls the target card directly into the center of the viewport (`scrollIntoView({ behavior: 'smooth', block: 'center' })`).
+  - **Glowing Visual Pulse Animation**: Applies an eye-catching highlight animation (`@keyframes notifHighlightPulse`) with a glowing border and shadow pulse on the target card to immediately draw the user's attention to the event.
+
+- **Fix / Punctuation Punctured Decimals, Local Container Isolation & Automatic Promotion Repair**:
+  - **Sentence Punctuation & Trailing Period Decoupling**: Fixed a critical numeric parsing bug in `parsePriceStringToNumber` and `parseNum` where text containing a decimal comma (e.g. `164,90 €`) followed by sentence punctuation or tooltip disclaimers (e.g. `Препоръчителна цена от доставчик. Продажната цена е показана по-долу.`) caused `lastDot > lastComma`. This incorrectly stripped the comma and inflated original prices by 100x (e.g. `164.90 €` parsed as `16490 €`, producing false `-99%` or `-100%` discounts like `29905 €`). Punctuation and sentence periods are now stripped prior to tokenization.
+  - **Local Price Block Prioritization & Upsell Exclusion**: Confined old price candidate queries to the immediate product `.price-box` / `.pricing-block` first before expanding to wide containers. Completely excluded upsell, related, recommended, and slider products (`.upsell`, `.related`, `.crosssell`, `[class*="slider"]`, `[class*="carousel"]`), preventing adjacent product prices from corrupting the tracked item.
+  - **Decimal-Drop Recovery & Outlier Safeguard**: Added an intelligent self-recovery heuristic in `content.js`, `picker.js`, and `background.js`: if an extracted original price is ~100x the current price and `(originalPrice / 100)` matches the expected magnitude, it automatically recovers the true decimal price (e.g. `16490 -> 164.90 €`). Any remaining absurd outliers (> 10x current price) are strictly discarded.
+  - **Automatic Database Self-Healing & Repaired Export**: Added `sanitizeTrackingDataPromotions` across `background.js` (on startup / scrape), `options.js` (on render / import), and `popup.js` (on render), automatically scanning and fixing existing databases. Provided `repaired_database.json` with all 8 corrupted item records completely healed.
+
+- **Fix & Feature / Accurate In-Page Voucher Promotion Calculation & eMAG SAPI Campaign Integration**:
+  - **Deduct Voucher Discount from Printed Value**: Fixed a runtime `TypeError` (`Assignment to constant variable`) where `currentPrice` was declared `const`, preventing the `-10%` voucher discount from being deducted from the printed price (`259.95 €`). Now reliably excludes the percentage discount, computing the net promotional price of `233.95 €` (saving `26.00 €`), with the printed price preserved as `originalPrice: 259.95 €`.
+  - **Direct Voucher Pipeline Passing**: Enhanced `executeScrapingTask` to pass fetched eMAG voucher notifications directly into `extractPriceAndPromo(element, config, sapiVoucher)`, eliminating DOM hierarchy lookup failures when the price element is nested inside `.pricing-block` and the voucher placeholder is in the parent container.
+  - **Proactive Picker Pre-Fetch & Text Regex Discovery**: Added proactive eMAG campaign pre-fetching on picker init and regex text matching (`[-–]?\s*(\d{1,2})%\s*отстъпка\s*с\s*ваучер`), allowing real-time hover preview in `picker.js` to immediately display the deducted voucher price.
+  - **Suppression of Hidden & Restricted Supplier Margins**: Filtered out internal supplier margin differences in `EM.offer` flagged with `is_restricted_from_view: true`, `is_visible: false`, or `labeled_as_discount: false`, completely eliminating phantom/bogus discounts (e.g. false `-9% (was: 285.95 €)`).
+  - **Desktop Notification & UI Strikethrough Verification**: Updated desktop alert construction and popup/options item rendering so `(беше: ...)` and `<del>` strikethrough tags are strictly displayed when `originalPrice > currentPrice`, ensuring clean notifications like `🔥 Открита промоция! -10% отстъпка с ваучер (MultiDeals1) 233.95 € (беше: 259.95 €)`.
+
+- **Fix & Feature / Comprehensive eMAG Promotion, Voucher & Script (`EM.offer`) Detection**:
+  - **Dedicated eMAG Offer Script Parser (`extractEmagPageData`)**: Added automated parsing of inline `EM.offer` and page script definitions in `content.js` and `picker.js`. Captures active discounts, discount percentages, absolute savings, and recommended retail prices (RRP/ПЦД) when publicly displayed on the storefront.
+  - **EU Omnibus & RRP/ПЦД Price Selectors**: Added full support for eMAG reference pricing in `DOMAIN_PRICE_RULES`, capturing `.rrp-lp30d-content`, `p.pricing.rrp-lp30d`, `p.rrp-lp30d`, `[class*="rrp-lp30d"]`, and `.card-v2-discounts` to compute accurate regular prices (`originalPrice`) and discount percentages.
+  - **Campaign Voucher & Promo Code Selectors**: Added dedicated selectors for eMAG campaign vouchers and personalized teasers (`.vcr-voucher-card`, `.vcr-voucher-placeholder`, `.vcr-badge`, `[class*="vcr-badge"]`, `.personalization-teaser`, `[data-source="voucher_badge"]`, `.product-page-pricing [class*="voucher"]`).
+  - **Container Scope Hierarchy Expansion**: Overhauled `closest()` container traversal in `extractPriceAndPromo` and `detectPriceInElement`. Rather than halting at immediate sub-blocks like `.pricing-block`, the engine searches for the full `.product-page-pricing`, `.product-highlight`, or `.highlight-box`, ensuring voucher placeholders and teaser badges are included in the search scope.
+  - **Unicode-Safe Duration Pre-Sanitizer**: Enhanced `parsePriceStringToNumber` and `parseNum` with Unicode regex sanitization to remove time duration phrases (e.g. *"30 дни"*, *"14 days"*) before parsing numeric digits, preventing regulatory text like *"Най-ниска цена за последните 30 дни: 289,95 €"* from corrupting numbers.
+  - **Synchronized Visual Picker Live Preview**: Fully mirrored the container scope expansion, RRP selectors, duration filtering, and `EM.offer` fallback in `picker.js`, providing instant `🔥 Promo -9% (285.95 €)` live badges when hovering over product prices.
+
+- **Feature & Overhaul / Advanced Promotion, Discount & Smart Selector Detection**:
+  - **Comprehensive Domain Price Rules Engine (`DOMAIN_PRICE_RULES`)**: Added a modular, domain-tailored rules engine in `content.js` with dedicated price and promotion selectors for 15+ major eCommerce sites and platforms:
+    - *eMag* (`emag.bg`): Detects `p.product-new-price`, `p.product-old-price`, `.product-discount`, and Genius badges.
+    - *Ozone* (`ozone.bg`): Detects `.price-box .price`, `.special-price`, MSRP/ПЦД regular prices, and `-XX%` promo tags while ignoring dynamic product ID wrapper IDs.
+    - *Amazon* (`amazon.com`, `amazon.de`, etc.): Targets `.a-price .a-offscreen`, `span.basisPrice`, and coupon/deal tags.
+    - *BabyMatters* (`babymatters.bg`): Targets `span.price`, regular prices, and discount percentages.
+    - *Baby.bg* (`baby.bg`): Handles Magento price box hierarchy, separating active discounts from original prices and difference values.
+    - *Ardes & Plasico* (`ardes.bg`, `plasico.bg`): Prioritizes `.price-normal`, `.current-price`, and strikethrough prices.
+    - *Jar Computers* (`jarcomputers.com`): Targets `#price_data`, `.price`, and promotional labels.
+    - *Rowenta & Tefal* (`rowenta.bg`, `tefal.bg`): Special handling for web components (`sd-price`), extracting active discounted prices and MSRP.
+    - *Praktiker & Praktis* (`praktiker.bg`, `praktis.bg`): Robust leaf and regular price parsing.
+    - *Raya Toys* (`rayatoys.com`): Targets `.product-price` and promotional tags.
+    - *BaniaStil & Pax* (`baniastil.com`, `pax.bg`): Prioritizes discounted prices and promo badges.
+    - *Shopify & WooCommerce Platforms*: Universal fallback rules for `.price--on-sale`, `.woocommerce-Price-amount`, and Schema.org metadata.
+  - **Schema.org JSON-LD & OpenGraph Fallback**: Built-in `extractFromStructuredData()` automatically extracts prices and currencies from `application/ld+json` (`@type: Product` / `Offer`) or `meta[property="product:price:amount"]` when page DOM elements are obfuscated or lazy-loaded.
+  - **Deep Promotion & Discount Extraction (`extractPriceAndPromo`)**: Automatically captures:
+    - `isPromo`: boolean indicating an active promotion.
+    - `originalPrice`: strikethrough/regular price before discount.
+    - `discountPercent`: calculated or detected percentage reduction (`-XX%`).
+    - `discountAmount`: monetary savings amount.
+    - `promoBadge`: text of the promotion or deal badge.
+  - **Anti-Brittle Selector Generation & Self-Healing**:
+    - Overhauled selector generation in `picker.js` and `content.js` to reject fragile, deep `:nth-of-type` chains (e.g. `main > section:nth-of-type(4) > div > div...`) and dynamic numeric IDs (e.g. `#product-options-767908`).
+    - If a tracked selector breaks during scraping or contains fragile patterns, the engine tests domain rules and Schema.org, finds the element, and automatically transmits an `autoHealedSelector` to update the user's storage seamlessly.
+  - **1-Click "⚡ Optimize Selectors" Tool**:
+    - Added an optimization engine in `background.js` and an "⚡ Optimize Selectors" button in `options.html` (`#tab-products`).
+    - Scans all tracked sites in the user's database, identifies brittle selectors, and upgrades them to robust, semantic domain selectors in 1 click.
+  - **Promotions UI in Dashboard & Popup**:
+    - **Filter Bar**: Added `[ All Items ]` and `[ 🔥 On Promotion only ]` toggle tabs in both `options.html` and `popup.html`.
+    - **Visual Promotion Badges**: Displays vibrant gradient badges (`🔥 -25%`, `🔥 Promo`), strikethrough regular prices (`<del>164.90 €</del>`), and savings tags (`Save 49.40 €`).
+    - **Category Badges**: Category headers display real-time counters for items currently on promotion (`🔥 2`).
+    - **Change History Filtering**: Added a dedicated `🔥 Promotions` filter to the Change History log to audit promotional drops.
+  - **Promotional Notifications**: When a price drop is accompanied by an active promotion, desktop notifications highlight the event with `🔥 Promotion Detected!`.
 
 - **Feature / Chronological Price & Text Change History Tab & Audit Log**:
   - **Dedicated Change History Tab**: Added a brand new "Change History" ("Хронология на промените") tab in the dashboard (`options.html`) providing a complete, chronological timeline of all price drops, price increases, and text changes.
@@ -106,7 +170,9 @@ PriceTracker Pro is a powerful browser extension (for Google Chrome, Microsoft E
 
 ## 📌 TODO
 
-- [ ] Add filtering and search functionality to the tracked items list.
+- [x] Add promotion and discount filtering (`[ All Items ]` / `[ 🔥 On Promotion only ]`).
+- [x] Windows desktop notification event targeting, auto-scroll and pulse highlight.
+- [ ] Add live text search filter bar to the tracked items list.
 - [ ] Add CSV / Excel price history export options.
 
 ## 📄 License

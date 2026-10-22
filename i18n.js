@@ -214,7 +214,25 @@ export const translations = {
         "time_ago_yesterday": "yesterday",
         "time_ago_days": "{d}d ago",
         "confirm_delete_log_entry": "Remove this change event from the log?",
-        "log_cleared_success": "Change history log cleared successfully."
+        "log_cleared_success": "Change history log cleared successfully.",
+        "on_promo": "on promo",
+        "promo_badge": "Promo",
+        "regular_price": "Regular price",
+        "was_label": "was",
+        "save_label": "Save",
+        "filter_all": "All items",
+        "filter_promo_only": "🔥 On Promotion only",
+        "on_promo_tooltip": "Special promotional price active",
+        "btn_optimize_selectors": "⚡ Optimize Selectors",
+        "optimize_selectors_title": "⚡ Smart Selector Optimizer",
+        "optimize_selectors_desc": "Scan tracked sites for brittle nth-of-type selectors and upgrade them to resilient smart selectors.",
+        "optimize_success": "Successfully upgraded {count} brittle selector(s) to resilient smart selectors!",
+        "optimize_none_needed": "All selectors are already resilient and optimized.",
+        "notif_promo_detected": "🔥 Promotion Detected!",
+        "cat_promo_badge": "🔥 {count} on promo",
+        "filter_promo_changes": "🔥 Promotions",
+        "optimizing": "⚡ Optimizing...",
+        "no_promo_items": "No items currently on promotion."
     },
     bg: {
         "app_title": "Price & Text Tracker",
@@ -431,7 +449,25 @@ export const translations = {
         "time_ago_yesterday": "вчера",
         "time_ago_days": "преди {d} дни",
         "confirm_delete_log_entry": "Желаете ли да премахнете този запис от хронологията?",
-        "log_cleared_success": "Хронологията на промените беше изчистена успешно."
+        "log_cleared_success": "Хронологията на промените беше изчистена успешно.",
+        "on_promo": "на промоция",
+        "promo_badge": "Промо",
+        "regular_price": "Редовна цена",
+        "was_label": "беше",
+        "save_label": "Спестявате",
+        "filter_all": "Всички артикули",
+        "filter_promo_only": "🔥 Само на промоция",
+        "on_promo_tooltip": "Активна промоционална цена",
+        "btn_optimize_selectors": "⚡ Оптимизирай селектори",
+        "optimize_selectors_title": "⚡ Оптимизатор на интелигентни селектори",
+        "optimize_selectors_desc": "Сканирай следените сайтове за чупливи селектори и ги обнови към устойчиви смарт селектори.",
+        "optimize_success": "Успешно обновени {count} чупливи селектор(а) към устойчиви смарт селектори!",
+        "optimize_none_needed": "Всички селектори вече са устойчиви и оптимизирани.",
+        "notif_promo_detected": "🔥 Открита промоция!",
+        "cat_promo_badge": "🔥 {count} на промоция",
+        "filter_promo_changes": "🔥 Промоции",
+        "optimizing": "⚡ Оптимизиране...",
+        "no_promo_items": "Няма артикули на промоция в момента."
     }
 };
 

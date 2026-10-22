@@ -23,8 +23,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 function generateUniqueSelector(el) {
     if (!el || el.nodeType !== 1) return "";
     
-    // 1. If element has an ID, check if it's unique
-    if (el.id && !/^\d+$/.test(el.id) && !el.id.includes('ember') && !el.id.includes('react-')) {
+    // Check if element is inside a recognized eCommerce price container
+    const semanticPrice = el.closest ? el.closest('.product-new-price, .special-price, .price-new, .current-price, .a-price, .product-price-col, .price-buy, .row-price, .product-price, .price-box, .price-wrapper, [data-price-type="finalPrice"], sd-price') : null;
+    if (semanticPrice) {
+        const tag = semanticPrice.tagName.toLowerCase();
+        for (const cls of ['product-new-price', 'special-price', 'price-new', 'current-price', 'product-price-col', 'price-buy', 'row-price']) {
+            if (semanticPrice.classList && semanticPrice.classList.contains(cls)) {
+                const s = `.${cls}`;
+                if (document.querySelectorAll(s).length === 1) return s;
+                const ts = `${tag}.${cls}`;
+                if (document.querySelectorAll(ts).length === 1) return ts;
+            }
+        }
+    }
+
+    // 1. If element has an ID, check if it's unique (avoid dynamic IDs with timestamps or numbers like product-options-767908)
+    if (el.id && !/^\d+$/.test(el.id) && !/\d{4,}/.test(el.id) && !/product-options-\d+/i.test(el.id) && !el.id.includes('ember') && !el.id.includes('react-')) {
         try {
             if (document.querySelectorAll('#' + CSS.escape(el.id)).length === 1) {
                 return '#' + CSS.escape(el.id);
@@ -37,7 +51,8 @@ function generateUniqueSelector(el) {
         const classes = el.className.split(/\s+/).filter(c => 
             c && 
             !/^(active|hover|focus|selected|open|closed|show|hide|visible|ng-|css-|styled-|d-|flex|justify-|align-|row|col|grid|container|m-|p-|w-|h-)/i.test(c) &&
-            !/^\d+$/.test(c)
+            !/^\d+$/.test(c) &&
+            !/\d{4,}/.test(c)
         );
         
         if (classes.length > 0) {
@@ -55,7 +70,7 @@ function generateUniqueSelector(el) {
     }
 
     // 3. Try standard semantic/eCommerce attributes
-    for (const attr of ['itemprop', 'data-testid', 'data-qa', 'data-cy', 'data-test']) {
+    for (const attr of ['itemprop', 'data-testid', 'data-qa', 'data-cy', 'data-test', 'data-price-type']) {
         const val = el.getAttribute(attr);
         if (val) {
             const attrSel = `[${attr}="${CSS.escape(val)}"]`;
@@ -67,7 +82,7 @@ function generateUniqueSelector(el) {
         }
     }
 
-    // 4. Concise hierarchical path (max 3 levels)
+    // 4. Concise hierarchical path (max 3 levels, avoid long nth-of-type chains)
     const path = [];
     let curr = el;
     let depth = 0;
@@ -75,7 +90,7 @@ function generateUniqueSelector(el) {
     while (curr && curr.nodeType === 1 && depth < 3) {
         let seg = curr.nodeName.toLowerCase();
 
-        if (curr.id && !/^\d+$/.test(curr.id) && !curr.id.includes('ember')) {
+        if (curr.id && !/^\d+$/.test(curr.id) && !/\d{4,}/.test(curr.id) && !curr.id.includes('ember')) {
             try {
                 seg += '#' + CSS.escape(curr.id);
                 path.unshift(seg);
@@ -85,7 +100,7 @@ function generateUniqueSelector(el) {
 
         if (curr.className && typeof curr.className === 'string') {
             const validClasses = curr.className.split(/\s+/).filter(c => 
-                c && !/^(active|hover|focus|selected|open|closed|show|hide|visible|ng-|css-|styled-|d-|flex|justify-|align-|row|col|grid|container|m-|p-|w-|h-)/i.test(c) && !/^\d+$/.test(c)
+                c && !/^(active|hover|focus|selected|open|closed|show|hide|visible|ng-|css-|styled-|d-|flex|justify-|align-|row|col|grid|container|m-|p-|w-|h-)/i.test(c) && !/^\d+$/.test(c) && !/\d{4,}/.test(c)
             );
             if (validClasses.length > 0) {
                 seg += '.' + CSS.escape(validClasses[0]);
@@ -116,8 +131,21 @@ function generateUniqueSelector(el) {
  */
 function parsePriceStringToNumber(targetText) {
     if (!targetText) return null;
-    let s = String(targetText).trim().replace(/[^0-9.,]/g, '');
+    let clean = String(targetText).replace(/\u00a0/g, ' ').replace(/(?:^|[^\d])\d+\s*(?:дни|дена|ден|days?|d|ч|часа|час|hours?)(?=[^\p{L}\p{N}]|$)/gui, ' ');
+    
+    // 1. Strip trailing non-digit punctuation (e.g. sentence-ending periods, commas, colons)
+    clean = clean.replace(/[\s.,:;!?-]+$/, '');
+
+    // 2. Extract potential price token using currency/numeric boundaries
+    const currSymbols = '€|EUR|лв\\.?|BGN|\\$|USD|£|GBP|Lei|RON|zł|PLN|CHF';
+    const tokenRegex = new RegExp(`(?:^|[^\\w.,])(\\d{1,3}(?:[ .]\\d{3})*(?:[.,]\\d{1,2})|\\d+(?:[.,]\\d{1,2}))\\s*(?:${currSymbols})?(?=[^\\w]|$)`, 'i');
+    const tokenMatch = clean.match(tokenRegex);
+
+    let s = tokenMatch ? tokenMatch[1] : clean.replace(/[^0-9.,]/g, '');
     if (!s || !/\d/.test(s)) return null;
+
+    s = s.trim().replace(/[\s.,]+$/, '');
+    s = s.replace(/\s+/g, ''); // Remove thousands separating spaces
 
     const lastComma = s.lastIndexOf(',');
     const lastDot = s.lastIndexOf('.');
@@ -126,7 +154,13 @@ function parsePriceStringToNumber(targetText) {
         if (lastComma > lastDot) {
             s = s.replace(/\./g, '').replace(',', '.'); // 1.250,99 -> 1250.99
         } else {
-            s = s.replace(/,/g, ''); // 1,250.99 -> 1250.99
+            const afterDot = s.length - lastDot - 1;
+            if (afterDot === 2 || afterDot === 1) {
+                s = s.replace(/,/g, ''); // 1,250.99 -> 1250.99
+            } else {
+                // e.g. 164,90. -> lastComma is the real decimal point
+                s = s.substring(0, lastDot).replace(/,/g, '.');
+            }
         }
     } else if (lastComma > -1) {
         if (s.length - lastComma - 1 === 3) {
@@ -520,7 +554,936 @@ function extractPricesFromElement(element, useLowestPrice = true) {
 }
 
 /**
- * Intelligently searches for the target element using direct query and progressive fallback strategies.
+ * Domain-specific price, promotion, and discount rules for high accuracy and self-healing.
+ */
+const DOMAIN_PRICE_RULES = [
+    {
+        // eMAG (bg, ro, hu)
+        match: (host) => host.includes('emag.'),
+        priceSelectors: [
+            'p.product-new-price',
+            '.product-page-pricing .product-new-price',
+            '.pricing-block .product-new-price',
+            '.product-highlight .product-new-price',
+            '[data-zone="pricing"] .product-new-price'
+        ],
+        oldPriceSelectors: [
+            'p.product-old-price',
+            '.product-page-pricing .product-old-price',
+            '.pricing-block .product-old-price',
+            'p.pricing.rrp-lp30d',
+            'p.rrp-lp30d',
+            '.rrp-lp30d-content',
+            '[class*="rrp-lp30d"]',
+            '.card-v2-discounts',
+            'p.product-old-price del',
+            '.product-page-pricing del'
+        ],
+        promoBadgeSelectors: [
+            '.product-discount',
+            '.badge-genius',
+            '.voucher-details',
+            '.vcr-voucher-card',
+            '.vcr-voucher-placeholder',
+            '.vcr-badge',
+            '[class*="vcr-badge"]',
+            '.personalization-teaser',
+            '[data-source="voucher_badge"]',
+            '.card-v2-discounts',
+            '.product-page-pricing [class*="discount"]',
+            '.product-page-pricing [class*="badge"]',
+            '.product-page-pricing [class*="voucher"]'
+        ],
+        cleanSelector: 'p.product-new-price'
+    },
+    {
+        // Amazon (de, com, co.uk, fr, it, es, etc.)
+        match: (host) => host.includes('amazon.'),
+        priceSelectors: [
+            '#corePriceDisplay_desktop_feature_div .a-price .a-offscreen',
+            '#corePrice_feature_div .a-price .a-offscreen',
+            '#apex_desktop .a-price .a-offscreen',
+            '.a-price .a-offscreen',
+            '#priceblock_ourprice',
+            '#priceblock_dealprice',
+            '#price_inside_buybox'
+        ],
+        oldPriceSelectors: [
+            '#corePriceDisplay_desktop_feature_div .basisPrice .a-offscreen',
+            'span.a-text-price .a-offscreen',
+            '#corePrice_feature_div span.a-text-price .a-offscreen',
+            '.basisPrice .a-offscreen',
+            '#listPrice'
+        ],
+        promoBadgeSelectors: [
+            '.savingsPercentage',
+            '.reinventPriceSavingsPercentageMargin',
+            '#couponBadge',
+            'label[for*="coupon"]',
+            '#dealBadge_feature_div'
+        ],
+        cleanSelector: '.a-price .a-offscreen'
+    },
+    {
+        // Ozone.bg
+        match: (host) => host.includes('ozone.bg'),
+        priceSelectors: [
+            '.price-box p.special-price .price',
+            'p.special-price .price',
+            '.price-box .regular-price .price',
+            '.price-box span.price',
+            '.price-box .price',
+            'p.special-price',
+            '.price-wrapper .price'
+        ],
+        oldPriceSelectors: [
+            '.price-box p.old-price .price',
+            'p.old-price .price',
+            '.price-box .old-price',
+            'p.old-price del',
+            'p.old-price'
+        ],
+        promoBadgeSelectors: [
+            '.discount-percentage',
+            '.badge-promo',
+            '.special-price-badge',
+            '.label-sale',
+            '.price-box .badge'
+        ],
+        cleanSelector: '.price-box .price, p.special-price .price'
+    },
+    {
+        // BabyMatters.bg
+        match: (host) => host.includes('babymatters.bg'),
+        priceSelectors: [
+            '.product-price-col .special-price',
+            '.product-price-col .price-new',
+            '.product-price-col span.price',
+            '.product-price-col',
+            '.product-purchase-panel .price-new',
+            '.product-purchase-panel .special-price'
+        ],
+        oldPriceSelectors: [
+            '.product-price-col .price-old',
+            '.product-price-col del',
+            '.product-price-col s',
+            '.product-purchase-panel .price-old'
+        ],
+        promoBadgeSelectors: [
+            '.product-discount-badge',
+            '.product-label-special',
+            '.badge-discount'
+        ],
+        cleanSelector: '.product-price-col'
+    },
+    {
+        // Baby.bg (Magento)
+        match: (host) => host.includes('baby.bg'),
+        priceSelectors: [
+            '.price-box .special-price .price',
+            '.price-box .regular-price .price',
+            '.product-info-price .special-price .price',
+            '.product-info-price .price',
+            '.price-box .price',
+            '.product-options'
+        ],
+        oldPriceSelectors: [
+            '.price-box .old-price .price',
+            '.product-info-price .old-price .price',
+            '.price-box .old-price'
+        ],
+        promoBadgeSelectors: [
+            '.discount-percent',
+            '.sale-label',
+            '.product-badge'
+        ],
+        cleanSelector: '.price-box .special-price .price, .price-box .price'
+    },
+    {
+        // Ardes.bg
+        match: (host) => host.includes('ardes.bg'),
+        priceSelectors: [
+            '.common-price .price',
+            '.price-total .price',
+            '.price-total',
+            '.common-price'
+        ],
+        oldPriceSelectors: [
+            '.common-price .price-standard',
+            '.old-price',
+            '.price-old'
+        ],
+        promoBadgeSelectors: [
+            '.discount-badge',
+            '.price-saving'
+        ],
+        cleanSelector: '.common-price .price, .price-total'
+    },
+    {
+        // Plasico.bg
+        match: (host) => host.includes('plasico.bg'),
+        priceSelectors: [
+            '.price-buy .price',
+            '.price-current',
+            '.new-price',
+            '.price-buy'
+        ],
+        oldPriceSelectors: [
+            '.price-buy .old-price',
+            '.old-price'
+        ],
+        promoBadgeSelectors: [
+            '.discount-percentage',
+            '.promo-badge',
+            '.discount-badge'
+        ],
+        cleanSelector: '.price-buy'
+    },
+    {
+        // Jar Computers
+        match: (host) => host.includes('jarcomputers.com'),
+        priceSelectors: [
+            'div.row-price .price',
+            'div.row-price .price_num',
+            '.price_num',
+            'div.row-price'
+        ],
+        oldPriceSelectors: [
+            'div.row-price .price_old',
+            '.price_old'
+        ],
+        promoBadgeSelectors: [
+            '.label-promo',
+            '.discount-badge'
+        ],
+        cleanSelector: 'div.row-price'
+    },
+    {
+        // Tefal / Rowenta (SEB Web-Components)
+        match: (host) => host.includes('tefal.') || host.includes('rowenta.'),
+        priceSelectors: [
+            'sd-price [class*="current"]',
+            'div.c__price-block sd-price',
+            'sd-price',
+            '.c__price-block .c__price'
+        ],
+        oldPriceSelectors: [
+            'sd-price del',
+            '.c__price-block del',
+            '[class*="c__price-old"]',
+            'sd-price s'
+        ],
+        promoBadgeSelectors: [
+            '.c__price-savings',
+            '[class*="savings"]',
+            '[class*="discount"]'
+        ],
+        cleanSelector: 'div.c__price-block > sd-price, sd-price'
+    },
+    {
+        // Praktiker.bg
+        match: (host) => host.includes('praktiker.bg'),
+        priceSelectors: [
+            '.pdp-tools .price',
+            '.pdp-tools__start .price',
+            '.pdp-price',
+            '.current-price',
+            '.pdp-tools__start'
+        ],
+        oldPriceSelectors: [
+            '.crossed-price',
+            '.old-price',
+            '.pdp-tools del'
+        ],
+        promoBadgeSelectors: [
+            '.promo-label',
+            '.discount-badge'
+        ],
+        cleanSelector: '.pdp-tools__start, .pdp-price'
+    },
+    {
+        // Praktis.bg
+        match: (host) => host.includes('praktis.bg'),
+        priceSelectors: [
+            '[data-price-type="finalPrice"]',
+            '.special-price .price',
+            '.product-info-price .price',
+            '.flex.gap-2.pb-3'
+        ],
+        oldPriceSelectors: [
+            '[data-price-type="oldPrice"]',
+            '.old-price .price'
+        ],
+        promoBadgeSelectors: [
+            '.discount-percent',
+            '.badge-promo'
+        ],
+        cleanSelector: '[data-price-type="finalPrice"], .special-price .price'
+    },
+    {
+        // Raya Toys
+        match: (host) => host.includes('rayatoys.com'),
+        priceSelectors: [
+            '.product-info-price .special-price .price',
+            '.product-info-price span.price',
+            'span.price'
+        ],
+        oldPriceSelectors: [
+            '.product-info-price .old-price .price',
+            '.old-price .price'
+        ],
+        promoBadgeSelectors: [
+            '.product-discount-label',
+            '.sale-badge'
+        ],
+        cleanSelector: '.product-info-price span.price, span.price'
+    },
+    {
+        // BaniaStil
+        match: (host) => host.includes('baniastil.com'),
+        priceSelectors: [
+            '.product-price .price-new',
+            '.product-price .special-price',
+            '.product-details .product-price'
+        ],
+        oldPriceSelectors: [
+            '.product-price .price-old',
+            '.product-price del',
+            '.product-price s'
+        ],
+        promoBadgeSelectors: [
+            '.promo-badge',
+            '.label-discount'
+        ],
+        cleanSelector: '.product-details .product-price'
+    },
+    {
+        // Pax.bg
+        match: (host) => host.includes('pax.bg'),
+        priceSelectors: [
+            '.product__content__list .product__price',
+            '.product__content__list',
+            '.product__price'
+        ],
+        oldPriceSelectors: [
+            '.product__price--old',
+            'del'
+        ],
+        promoBadgeSelectors: [
+            '.badge-promo'
+        ],
+        cleanSelector: '.product__content__list'
+    },
+    {
+        // Elaria.bg (Shopify)
+        match: (host) => host.includes('elaria.bg') || host.includes('myshopify.com'),
+        priceSelectors: [
+            '.product-block--price .price-item--sale',
+            '.product-block--price .price__current',
+            '.product-block.product-block--price .price-item',
+            '.price-item--sale',
+            '.product-block--price'
+        ],
+        oldPriceSelectors: [
+            '.product-block--price .price-item--regular',
+            '.price-item--regular',
+            's.price-item'
+        ],
+        promoBadgeSelectors: [
+            '.badge--sale',
+            '.price__badge-sale'
+        ],
+        cleanSelector: '.product-block.product-block--price'
+    },
+    {
+        // Generic WooCommerce
+        match: () => !!document.querySelector('.woocommerce-Price-amount, .woocommerce-product-details__short-description'),
+        priceSelectors: [
+            'ins .woocommerce-Price-amount',
+            '.woocommerce-Price-amount.amount',
+            'p.price .amount'
+        ],
+        oldPriceSelectors: [
+            'del .woocommerce-Price-amount',
+            'del .amount'
+        ],
+        promoBadgeSelectors: [
+            '.onsale',
+            '.woocommerce-badge'
+        ],
+        cleanSelector: 'ins .woocommerce-Price-amount, .woocommerce-Price-amount'
+    },
+    {
+        // Generic Magento / PrestaShop / OpenCart
+        match: () => !!document.querySelector('.price-box, .current-price, .product-price-and-shipping'),
+        priceSelectors: [
+            '.special-price .price',
+            '.current-price [itemprop="price"]',
+            '.price-new',
+            '.product-price-and-shipping .current-price',
+            '.price-box .price'
+        ],
+        oldPriceSelectors: [
+            '.old-price .price',
+            '.regular-price',
+            '.price-old',
+            '.product-price-and-shipping .regular-price'
+        ],
+        promoBadgeSelectors: [
+            '.discount-percentage',
+            '.discount-amount',
+            '.badge-discount'
+        ],
+        cleanSelector: '.special-price .price, .current-price, .price-new'
+    }
+];
+
+/**
+ * Dedicated parser for eMAG inline script offer data (EM.offer and campaign flags).
+ * Extracts active promo, RRP/LP30D price, discount percent, and absolute discount amount.
+ */
+function extractEmagPageData() {
+    if (!window.location.hostname.includes('emag.')) return null;
+    try {
+        const scripts = document.querySelectorAll('script:not([src])');
+        for (const s of scripts) {
+            const content = s.textContent || '';
+            if (!content.includes('EM.offer')) continue;
+
+            const emOfferMatch = content.match(/EM\.offer\s*=\s*(\{[\s\S]*?\n\s*\};)/);
+            const targetContent = emOfferMatch ? emOfferMatch[1] : content;
+
+            // Discard restricted internal margin differences that are hidden from customers
+            const isRestricted = targetContent.includes('"is_restricted_from_view":true') || 
+                                 targetContent.includes('"is_restricted_from_view": true') ||
+                                 targetContent.includes('"is_visible":false') ||
+                                 targetContent.includes('"is_visible": false') ||
+                                 targetContent.includes('"labeled_as_discount":false') ||
+                                 targetContent.includes('"labeled_as_discount": false');
+
+            const curMatch = targetContent.match(/"current"\s*:\s*(\d+(?:\.\d+)?)/);
+            const rrpMatch = targetContent.match(/"recommended_retail_price"\s*:\s*\{[^}]*"amount"\s*:\s*(\d+(?:\.\d+)?)/);
+            const lowest30Match = targetContent.match(/"lowest_price_30_days"\s*:\s*\{[^}]*"amount"\s*:\s*(\d+(?:\.\d+)?)/);
+            const rrp = (rrpMatch && parseFloat(rrpMatch[1]) > 0) ? parseFloat(rrpMatch[1]) : null;
+            const lowest30 = (lowest30Match && parseFloat(lowest30Match[1]) > 0) ? parseFloat(lowest30Match[1]) : null;
+
+            const cur = curMatch ? parseFloat(curMatch[1]) : null;
+
+            let pct = null;
+            let abs = null;
+            if (!isRestricted) {
+                const pctMatch = targetContent.match(/"percent"\s*:\s*(\d+(?:\.\d+)?)/);
+                const absMatch = targetContent.match(/"absolute"\s*:\s*(\d+(?:\.\d+)?)/);
+                pct = pctMatch ? parseFloat(pctMatch[1]) : null;
+                abs = absMatch ? parseFloat(absMatch[1]) : null;
+            }
+
+            let orig = rrp || lowest30;
+            if (cur && (orig && orig > cur)) {
+                const finalPct = pct || Math.round(((orig - cur) / orig) * 100);
+                const finalAbs = abs || +(orig - cur).toFixed(2);
+                return {
+                    value: cur,
+                    originalPrice: orig,
+                    discountPercent: finalPct,
+                    discountAmount: finalAbs,
+                    isPromo: true,
+                    promoBadge: `-${finalPct}%`,
+                    currency: '€'
+                };
+            }
+        }
+    } catch (e) {}
+    return null;
+}
+
+/**
+ * Extracts product price and promotional details from Schema.org JSON-LD scripts or OpenGraph/Meta tags.
+ */
+function extractFromStructuredData() {
+    let result = null;
+
+    // 1. JSON-LD scripts (<script type="application/ld+json">)
+    const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
+    for (const script of jsonLdScripts) {
+        try {
+            const raw = script.textContent.trim();
+            if (!raw) continue;
+            const parsed = JSON.parse(raw);
+            const items = Array.isArray(parsed) ? parsed : (parsed['@graph'] || [parsed]);
+
+            for (const item of items) {
+                if (!item) continue;
+                const type = (item['@type'] || '').toLowerCase();
+                
+                if (type === 'product' || type === 'individualproduct' || type === 'productgroup') {
+                    const offers = Array.isArray(item.offers) ? item.offers : (item.offers ? [item.offers] : []);
+                    
+                    for (const offer of offers) {
+                        if (!offer) continue;
+                        const price = parseFloat(offer.price || offer.lowPrice);
+                        const curr = offer.priceCurrency ? normalizeCurrency(offer.priceCurrency) : '€';
+                        const highPrice = parseFloat(offer.highPrice);
+                        const avail = String(offer.availability || '').toLowerCase();
+                        const isOutOfStock = avail.includes('outofstock') || avail.includes('discontinued');
+
+                        if (!isNaN(price) && price > 0) {
+                            let original = (!isNaN(highPrice) && highPrice > price) ? highPrice : null;
+                            let discPct = null;
+                            let isPromo = false;
+
+                            if (original) {
+                                discPct = Math.round(((original - price) / original) * 100);
+                                isPromo = discPct > 0;
+                            }
+
+                            result = {
+                                value: price,
+                                currency: curr,
+                                originalPrice: original,
+                                discountPercent: discPct,
+                                discountAmount: original ? +(original - price).toFixed(2) : null,
+                                isPromo: isPromo,
+                                promoBadge: discPct ? `-${discPct}%` : null,
+                                stockStatus: isOutOfStock ? 'out_of_stock' : 'in_stock',
+                                source: 'json_ld'
+                            };
+                            return result;
+                        }
+                    }
+                }
+            }
+        } catch (e) {}
+    }
+
+    // 2. OpenGraph / Twitter meta tags
+    try {
+        const ogPriceEl = document.querySelector('meta[property="product:price:amount"], meta[property="og:price:amount"], meta[name="twitter:data1"]');
+        const ogSalePriceEl = document.querySelector('meta[property="product:sale_price:amount"]');
+        const ogOrigPriceEl = document.querySelector('meta[property="product:original_price:amount"]');
+        const ogCurrEl = document.querySelector('meta[property="product:price:currency"], meta[property="og:price:currency"]');
+
+        const mainPrice = ogSalePriceEl ? parseFloat(ogSalePriceEl.content) : (ogPriceEl ? parseFloat(ogPriceEl.content) : null);
+        const origPrice = ogOrigPriceEl ? parseFloat(ogOrigPriceEl.content) : (ogSalePriceEl && ogPriceEl ? parseFloat(ogPriceEl.content) : null);
+        const curr = ogCurrEl ? normalizeCurrency(ogCurrEl.content) : '€';
+
+        if (mainPrice !== null && !isNaN(mainPrice) && mainPrice > 0) {
+            let discPct = null;
+            let isPromo = false;
+            let validOrig = (origPrice !== null && !isNaN(origPrice) && origPrice > mainPrice) ? origPrice : null;
+
+            if (validOrig) {
+                discPct = Math.round(((validOrig - mainPrice) / validOrig) * 100);
+                isPromo = discPct > 0;
+            }
+
+            result = {
+                value: mainPrice,
+                currency: curr,
+                originalPrice: validOrig,
+                discountPercent: discPct,
+                discountAmount: validOrig ? +(validOrig - mainPrice).toFixed(2) : null,
+                isPromo: isPromo,
+                promoBadge: discPct ? `-${discPct}%` : null,
+                stockStatus: 'in_stock',
+                source: 'meta_tags'
+            };
+            return result;
+        }
+    } catch (e) {}
+
+    return null;
+}
+
+/**
+ * Searches for target element using built-in domain specific rules.
+ */
+function findTargetWithDomainRules(config = {}) {
+    const host = window.location.hostname.toLowerCase();
+    for (const rule of DOMAIN_PRICE_RULES) {
+        if (rule.match(host)) {
+            for (const sel of rule.priceSelectors) {
+                try {
+                    const el = document.querySelector(sel);
+                    if (el) {
+                        const check = extractPricesFromElement(el, true);
+                        if (check.value !== null && check.value > 0) {
+                            return { element: el, ruleSelector: rule.cleanSelector || sel };
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Comprehensive price and promotion extractor.
+ * Detects current price, old/original price, discount percentage, and promotion vouchers/badges.
+ */
+function extractPriceAndPromo(element, config = {}, directVoucher = null) {
+    if (!element) return { value: null, currency: '€' };
+
+    const useLowest = config.useLowestPrice !== false;
+    const baseResult = extractPricesFromElement(element, useLowest);
+    if (!baseResult || baseResult.value === null) {
+        return { value: null, currency: '€' };
+    }
+
+    let currentPrice = baseResult.value;
+    const currency = baseResult.currency || '€';
+
+    let originalPrice = null;
+    let discountPercent = null;
+    let discountAmount = null;
+    let isPromo = false;
+    let promoBadge = null;
+
+    // 1. Check matching domain rule for dedicated old price & badge selectors
+    const host = window.location.hostname.toLowerCase();
+    const matchedRule = DOMAIN_PRICE_RULES.find(r => r.match(host));
+
+    // 2. Expand search area: prioritize local pricing block first to prevent upsell/related contamination
+    const localPriceBlock = (element.closest && element.closest([
+        '.pricing-block',
+        '.product-price-col',
+        '.price-box',
+        '.price-wrapper',
+        '.product-info-price',
+        '.c__price-block',
+        '.pdp-tools',
+        '.common-price',
+        '.price-buy',
+        '.product-details',
+        'div[class*="price"]'
+    ].join(','))) || element.parentElement || element;
+
+    const widePriceBlock = (element.closest && element.closest([
+        '.product-page-pricing',
+        '.product-highlight',
+        '.highlight-box',
+        '.main-product-form',
+        '.product-info-main',
+        '.product-purchase-panel',
+        '.product-block--price',
+        '#corePriceDisplay_desktop_feature_div',
+        '#corePrice_feature_div',
+        '#apex_desktop',
+        'form[id*="cart"]'
+    ].join(',')));
+
+    const priceBlock = localPriceBlock || widePriceBlock || element;
+
+    // 3. Search for explicit original / old / strikethrough price
+    const oldPriceCandidates = [
+        ...(matchedRule?.oldPriceSelectors || []),
+        'p.product-old-price',
+        '.product-old-price',
+        'p.old-price',
+        '.old-price',
+        '.price-old',
+        '.price-standard',
+        '.crossed-price',
+        'span.a-text-price .a-offscreen',
+        '.basisPrice .a-offscreen',
+        '#listPrice',
+        'del',
+        's',
+        'strike',
+        '[class*="price-through"]',
+        '[class*="line-through"]',
+        '[class*="old-price"]',
+        '[class*="old_price"]',
+        '[data-price-type="oldPrice"]'
+    ];
+
+    // Search local price block first, then wide container if not found
+    const searchBlocks = [localPriceBlock];
+    if (widePriceBlock && widePriceBlock !== localPriceBlock) {
+        searchBlocks.push(widePriceBlock);
+    }
+
+    for (const block of searchBlocks) {
+        if (originalPrice) break;
+        for (const sel of oldPriceCandidates) {
+            try {
+                const els = block.querySelectorAll(sel);
+                for (const oldEl of els) {
+                    // Ignore elements inside upsell, related, or recommended carousels
+                    if (oldEl.closest && oldEl.closest('.upsell, .related, .crosssell, [class*="upsell"], [class*="slider"], [class*="carousel"], [class*="recommended"]')) {
+                        continue;
+                    }
+
+                    // Prefer nested .price or span.price to avoid tooltips and labels
+                    const subPrice = oldEl.querySelector('.price, span.price, del, s, strike');
+                    const targetEl = subPrice || oldEl;
+
+                    // Strip tooltips before reading text
+                    let oldText = '';
+                    try {
+                        const clone = targetEl.cloneNode(true);
+                        const tooltips = clone.querySelectorAll('.product-tooltip, .product-page-tooltip, .tooltip, [role="tooltip"], .price-label');
+                        tooltips.forEach(t => t.remove());
+                        oldText = (clone.innerText || clone.textContent || '').replace(/\u00a0/g, ' ').trim();
+                    } catch (e) {
+                        oldText = (targetEl.innerText || targetEl.textContent || '').replace(/\u00a0/g, ' ').trim();
+                    }
+
+                    let parsedOld = parsePriceStringToNumber(oldText);
+                    if (parsedOld !== null) {
+                        // Decimal-drop safeguard: if parsedOld is ~100x currentPrice (e.g. 16490 vs 115.5 or 164.9), adjust
+                        if (parsedOld >= currentPrice * 30 && Math.abs((parsedOld / 100) - currentPrice) < currentPrice * 2) {
+                            parsedOld = +(parsedOld / 100).toFixed(2);
+                        }
+                        // Discard absurd outliers (e.g. > 10x currentPrice)
+                        if (parsedOld > currentPrice && parsedOld <= currentPrice * 10 && (!originalPrice || parsedOld > originalPrice)) {
+                            originalPrice = parsedOld;
+                        }
+                    }
+                }
+            } catch (e) {}
+        }
+    }
+
+    // 4. Search for in-page voucher cards, data-voucher JSON, and promo badges
+    let voucherDiscountPercent = null;
+    let voucherDiscountAmount = null;
+    let voucherPromoBadge = null;
+
+    // 4a. Check direct voucher passed from eMAG SAPI call
+    if (directVoucher) {
+        if (directVoucher.discount_type === 1 && typeof directVoucher.discount_value === 'number') {
+            voucherDiscountPercent = directVoucher.discount_value;
+        } else if (directVoucher.discount_type === 2 && typeof directVoucher.discount_value === 'number') {
+            voucherDiscountAmount = directVoucher.discount_value;
+        }
+        if (directVoucher.name) {
+            voucherPromoBadge = directVoucher.name;
+            if (directVoucher.voucher_code) {
+                voucherPromoBadge += ` (${directVoucher.voucher_code})`;
+            }
+        }
+    }
+
+    // 4b. Search in-page voucher elements in priceBlock or document scope
+    if (!voucherDiscountPercent && !voucherDiscountAmount) {
+        const voucherEl = (priceBlock && priceBlock.querySelector('.js-in-page-voucher, [data-voucher], .vcr-voucher-card, .vcr-voucher-placeholder, .personalization-teaser')) ||
+                          document.querySelector('.js-in-page-voucher, [data-voucher], .vcr-voucher-card, .vcr-voucher-placeholder, .personalization-teaser');
+        if (voucherEl) {
+            try {
+                const rawVoucher = voucherEl.getAttribute('data-voucher');
+                if (rawVoucher) {
+                    const vData = JSON.parse(rawVoucher);
+                    if (vData) {
+                        if (vData.discount_type === 1 && typeof vData.discount_value === 'number') {
+                            voucherDiscountPercent = vData.discount_value;
+                        } else if (vData.discount_type === 2 && typeof vData.discount_value === 'number') {
+                            voucherDiscountAmount = vData.discount_value;
+                        }
+                        if (vData.name) {
+                            voucherPromoBadge = vData.name;
+                            if (vData.voucher_code) {
+                                voucherPromoBadge += ` (${vData.voucher_code})`;
+                            }
+                        }
+                    }
+                }
+            } catch (e) {}
+
+            if (!voucherDiscountPercent && !voucherPromoBadge) {
+                const vText = (voucherEl.innerText || voucherEl.textContent || '').replace(/\u00a0/g, ' ').trim();
+                const pctMatch = vText.match(/[-–]?\s*(\d{1,2}(?:[.,]\d)?)\s*%/);
+                if (pctMatch) {
+                    voucherDiscountPercent = Math.round(parseFloat(pctMatch[1].replace(',', '.')));
+                }
+                const nameMatch = vText.match(/[-–]?\s*\d{1,2}%\s*отстъпка\s*с\s*ваучер|ваучер\s*[-–]?\s*\d{1,2}%|[-–]?\s*\d{1,2}%\s*с\s*код\s*[\w\d]+/i);
+                if (nameMatch) {
+                    voucherPromoBadge = nameMatch[0];
+                }
+            }
+        }
+    }
+
+    // 4c. Search full pricing container or main content for visible voucher text
+    if (!voucherDiscountPercent && !voucherDiscountAmount) {
+        const searchScope = (element.closest && element.closest('.product-page-pricing, .product-highlight, .main-product-form, main')) || document.body;
+        if (searchScope) {
+            const scopeText = (searchScope.innerText || searchScope.textContent || '').replace(/\u00a0/g, ' ');
+            const vTextMatch = scopeText.match(/[-–]?\s*(\d{1,2})%\s*отстъпка\s*с\s*ваучер/i) ||
+                               scopeText.match(/ваучер\s*[-–]?\s*(\d{1,2})%/i);
+            if (vTextMatch) {
+                voucherDiscountPercent = parseInt(vTextMatch[1], 10);
+                voucherPromoBadge = vTextMatch[0];
+            }
+        }
+    }
+
+    const promoBadgeCandidates = [
+        ...(matchedRule?.promoBadgeSelectors || []),
+        '.product-discount',
+        '.badge-genius',
+        '.voucher-details',
+        '.discount-percentage',
+        '.savingsPercentage',
+        '.badge-promo',
+        '.product-label-special',
+        '.product-discount-badge',
+        '.discount-badge',
+        '.promo-badge',
+        '.c__price-savings',
+        '.badge--sale',
+        '.onsale',
+        '[class*="discount"]',
+        '[class*="savings"]',
+        '[class*="promo"]',
+        '[class*="badge"]'
+    ];
+
+    for (const sel of promoBadgeCandidates) {
+        try {
+            const els = priceBlock.querySelectorAll(sel);
+            for (const bEl of els) {
+                const bText = (bEl.innerText || bEl.textContent || '').replace(/\u00a0/g, ' ').trim();
+                if (!bText) continue;
+
+                // Match -XX% or XX%
+                const pctMatch = bText.match(/[-–]?\s*(\d{1,2}(?:[.,]\d)?)\s*%/);
+                if (pctMatch) {
+                    const parsedPct = parseFloat(pctMatch[1].replace(',', '.'));
+                    if (parsedPct > 0 && parsedPct < 100 && (!discountPercent || parsedPct > discountPercent)) {
+                        discountPercent = Math.round(parsedPct);
+                        if (!promoBadge) promoBadge = `-${discountPercent}%`;
+                    }
+                }
+
+                // Check for voucher / coupon text
+                const vMatch = bText.match(/[-–]?\s*\d{1,2}%\s*отстъпка\s*с\s*ваучер|ваучер\s*[-–]?\s*\d{1,2}%|[-–]?\s*\d{1,2}%\s*с\s*код\s*[\w\d]+/i);
+                if (vMatch) {
+                    voucherPromoBadge = vMatch[0];
+                    if (!voucherDiscountPercent && pctMatch) {
+                        voucherDiscountPercent = Math.round(parseFloat(pctMatch[1].replace(',', '.')));
+                    }
+                } else if (/voucher|ваучер|coupon|купон|genius|код\s*за\s*отстъпка/i.test(bText)) {
+                    const cleanBadge = bText.replace(/\s+/g, ' ').trim();
+                    if (cleanBadge.length <= 40 && !promoBadge) {
+                        promoBadge = cleanBadge;
+                    }
+                }
+            }
+        } catch (e) {}
+    }
+
+    // 5. Check eMAG script data fallback
+    if (!originalPrice || !discountPercent) {
+        const emagData = extractEmagPageData();
+        if (emagData) {
+            if (!originalPrice && emagData.originalPrice && emagData.originalPrice > currentPrice) {
+                originalPrice = emagData.originalPrice;
+            }
+            if (!discountPercent && emagData.discountPercent) {
+                discountPercent = emagData.discountPercent;
+            }
+            if (!discountAmount && emagData.discountAmount) {
+                discountAmount = emagData.discountAmount;
+            }
+            if (emagData.isPromo) {
+                isPromo = true;
+            }
+            if (!promoBadge && emagData.promoBadge) {
+                promoBadge = emagData.promoBadge;
+            }
+        }
+    }
+
+    // 6. Check JSON-LD / Meta data for highPrice / regular price if not found yet
+    if (!originalPrice || !discountPercent) {
+        const metaData = extractFromStructuredData();
+        if (metaData) {
+            if (!originalPrice && metaData.originalPrice && metaData.originalPrice > currentPrice) {
+                originalPrice = metaData.originalPrice;
+            }
+            if (!discountPercent && metaData.discountPercent) {
+                discountPercent = metaData.discountPercent;
+            }
+        }
+    }
+
+    // 7. Calculate promotion and discount amounts
+    if (voucherDiscountPercent && voucherDiscountPercent > 0) {
+        isPromo = true;
+        discountPercent = voucherDiscountPercent;
+        promoBadge = voucherPromoBadge || `-${discountPercent}% с ваучер`;
+
+        if (!originalPrice) {
+            // No strikethrough price: currentPrice (e.g. 259.95) is the regular price before voucher
+            discountAmount = +(currentPrice * (discountPercent / 100)).toFixed(2);
+            if (useLowest) {
+                originalPrice = currentPrice;
+                currentPrice = +(currentPrice - discountAmount).toFixed(2);
+            }
+        } else {
+            // Product already had a strikethrough price (originalPrice)
+            if (useLowest) {
+                const voucherSavings = +(currentPrice * (discountPercent / 100)).toFixed(2);
+                currentPrice = +(currentPrice - voucherSavings).toFixed(2);
+            }
+            discountAmount = +(originalPrice - currentPrice).toFixed(2);
+            discountPercent = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+        }
+    } else if (voucherDiscountAmount && voucherDiscountAmount > 0) {
+        isPromo = true;
+        promoBadge = voucherPromoBadge || `-${voucherDiscountAmount} с ваучер`;
+        if (!originalPrice) {
+            discountAmount = voucherDiscountAmount;
+            if (useLowest) {
+                originalPrice = currentPrice;
+                currentPrice = +(currentPrice - voucherDiscountAmount).toFixed(2);
+                discountPercent = Math.round((discountAmount / originalPrice) * 100);
+            } else {
+                discountPercent = Math.round((discountAmount / currentPrice) * 100);
+            }
+        } else {
+            if (useLowest) {
+                currentPrice = +(currentPrice - voucherDiscountAmount).toFixed(2);
+            }
+            discountAmount = +(originalPrice - currentPrice).toFixed(2);
+            discountPercent = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+        }
+    } else if (originalPrice && originalPrice > currentPrice) {
+        isPromo = true;
+        if (!discountPercent) {
+            discountPercent = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+        }
+        discountAmount = +(originalPrice - currentPrice).toFixed(2);
+        if (!promoBadge) {
+            promoBadge = `-${discountPercent}%`;
+        }
+    } else if (discountPercent && discountPercent > 0) {
+        isPromo = true;
+        if (!originalPrice) {
+            discountAmount = +(currentPrice * (discountPercent / 100)).toFixed(2);
+            if (useLowest) {
+                originalPrice = currentPrice;
+                currentPrice = +(currentPrice - discountAmount).toFixed(2);
+            }
+        }
+    }
+
+    return {
+        value: currentPrice,
+        currency: currency,
+        originalPrice: originalPrice,
+        discountPercent: discountPercent,
+        discountAmount: discountAmount,
+        isPromo: isPromo,
+        promoBadge: promoBadge,
+        stockStatus: 'in_stock'
+    };
+}
+
+/**
+ * Intelligently searches for the target element using direct query, domain rules, and progressive fallback strategies.
  */
 function findTargetElement(selector, itemType = 'price') {
     if (!selector) return null;
@@ -585,8 +1548,13 @@ function findTargetElement(selector, itemType = 'price') {
         }
     } catch (e) {}
 
-    // 5. eCommerce price selector fallbacks (if itemType === 'price')
+    // 5. Try domain-specific rules (smart fallback)
     if (itemType === 'price') {
+        const domainMatch = findTargetWithDomainRules();
+        if (domainMatch && domainMatch.element) {
+            return domainMatch.element;
+        }
+
         const priceCandidates = [
             'p.special-price',
             '.special-price',
@@ -767,30 +1735,151 @@ async function executeScrapingTask(config) {
 
         // 2. Wait for target element to appear in DOM (up to 20s with progressive fallback)
         let element = await waitForElement(config.selector, config.type || "price", 20000);
+        let autoHealedSelector = null;
 
-        if (!element) {
-            const diag = diagnosePageFailure();
-            if (diag) {
-                throw new Error(diag);
+        // If selector wasn't found, try domain rules or structured data fallback
+        if (!element && config.type === "price") {
+            const domainMatch = findTargetWithDomainRules(config);
+            if (domainMatch && domainMatch.element) {
+                element = domainMatch.element;
+                autoHealedSelector = domainMatch.ruleSelector;
+                console.log(`[PriceTracker] Auto-healed broken selector "${config.selector}" -> "${autoHealedSelector}"`);
             }
-            throw new Error(`Element with selector "${config.selector}" was not found.`);
+        }
+
+        // eMAG voucher campaign check: fetch async voucher if not yet in DOM
+        let sapiVoucher = null;
+        if (window.location.hostname.includes('emag.')) {
+            const addBtn = document.querySelector('[data-offer-id]');
+            let offerId = addBtn ? addBtn.getAttribute('data-offer-id') : null;
+            if (!offerId) {
+                const prodEl = document.querySelector('[data-product*="offerid"]');
+                if (prodEl) {
+                    try {
+                        const pData = JSON.parse(prodEl.getAttribute('data-product'));
+                        if (pData && pData.offerid) offerId = String(pData.offerid);
+                    } catch (e) {}
+                }
+            }
+            if (!offerId) {
+                const htmlText = document.documentElement.innerHTML || '';
+                const m = htmlText.match(/data-offer-id=["'](\d+)["']/) ||
+                          htmlText.match(/"offerid"\s*:\s*(\d+)/) ||
+                          htmlText.match(/"offer_id"\s*:\s*(\d+)/);
+                if (m) offerId = m[1];
+            }
+
+            if (offerId && /^\d+$/.test(offerId)) {
+                try {
+                    const sapiRes = await fetch(`https://sapi.emag.bg/voucher-campaign/product-page/${offerId}`, {
+                        headers: { 'X-Request-Source': 'www' }
+                    });
+                    if (sapiRes.ok) {
+                        const sapiData = await sapiRes.json();
+                        const notif = sapiData?.data?.notification;
+                        if (notif && (notif.discount_value > 0 || notif.discount_percent > 0)) {
+                            sapiVoucher = notif;
+                            const placeholder = document.querySelector('.js-vcr-voucher-placeholder') || document.querySelector('.product-page-pricing') || document.body;
+                            const vDiv = document.createElement('div');
+                            vDiv.className = 'js-in-page-voucher';
+                            vDiv.setAttribute('data-voucher', JSON.stringify(notif));
+                            vDiv.innerHTML = `<span class="voucher-name">${notif.name}</span>`;
+                            placeholder.appendChild(vDiv);
+                        }
+                    }
+                } catch (e) {}
+            }
         }
 
         let finalValue = null;
         let currency = '€';
+        let originalPrice = null;
+        let discountPercent = null;
+        let discountAmount = null;
+        let isPromo = false;
+        let promoBadge = null;
+        let stockStatus = 'in_stock';
 
         if (config.type === "price") {
-            const useLowest = config.useLowestPrice !== false;
-            const priceResult = extractPricesFromElement(element, useLowest);
-            
-            if (priceResult.value === null) {
-                const rawText = (element.innerText || element.textContent || '').replace(/\u00a0/g, ' ').trim();
-                throw new Error(`Extracted price is not a valid number: "${rawText}"`);
+            if (element) {
+                const promoResult = extractPriceAndPromo(element, config, sapiVoucher);
+                if (promoResult.value !== null) {
+                    finalValue = promoResult.value;
+                    currency = promoResult.currency;
+                    originalPrice = promoResult.originalPrice;
+                    discountPercent = promoResult.discountPercent;
+                    discountAmount = promoResult.discountAmount;
+                    isPromo = promoResult.isPromo;
+                    promoBadge = promoResult.promoBadge;
+                    stockStatus = promoResult.stockStatus;
+                }
             }
-            
-            finalValue = priceResult.value;
-            currency = priceResult.currency;
+
+            // Fallback: eMAG script data or Structured Data
+            if (finalValue === null) {
+                const emagData = extractEmagPageData();
+                if (emagData && emagData.value !== null) {
+                    finalValue = emagData.value;
+                    currency = emagData.currency || '€';
+                    originalPrice = emagData.originalPrice;
+                    discountPercent = emagData.discountPercent;
+                    discountAmount = emagData.discountAmount;
+                    isPromo = emagData.isPromo;
+                    promoBadge = emagData.promoBadge;
+                    stockStatus = 'in_stock';
+                }
+            }
+            if (finalValue === null) {
+                const structured = extractFromStructuredData();
+                if (structured && structured.value !== null) {
+                    finalValue = structured.value;
+                    currency = structured.currency;
+                    originalPrice = structured.originalPrice;
+                    discountPercent = structured.discountPercent;
+                    discountAmount = structured.discountAmount;
+                    isPromo = structured.isPromo;
+                    promoBadge = structured.promoBadge;
+                    stockStatus = structured.stockStatus;
+                }
+            }
+
+            // Check if current selector is brittle and can be improved
+            if (!autoHealedSelector && config.selector) {
+                const isBrittle = config.selector.includes(':nth-of-type') || 
+                                  config.selector.includes('#product-options') || 
+                                  config.selector === 'div > div.a-section > div.a-section' ||
+                                  config.selector.split('>').length > 4;
+                if (isBrittle) {
+                    const host = window.location.hostname.toLowerCase();
+                    const matchedRule = DOMAIN_PRICE_RULES.find(r => r.match(host));
+                    if (matchedRule && matchedRule.cleanSelector) {
+                        try {
+                            const cleanEl = document.querySelector(matchedRule.cleanSelector);
+                            if (cleanEl) {
+                                autoHealedSelector = matchedRule.cleanSelector;
+                                console.log(`[PriceTracker] Upgraded brittle selector "${config.selector}" -> "${autoHealedSelector}"`);
+                            }
+                        } catch (e) {}
+                    }
+                }
+            }
+
+            if (finalValue === null) {
+                const diag = diagnosePageFailure();
+                if (diag) {
+                    throw new Error(diag);
+                }
+                const rawText = element ? (element.innerText || element.textContent || '').replace(/\u00a0/g, ' ').trim() : '';
+                throw new Error(rawText ? `Extracted price is not a valid number: "${rawText}"` : `Element with selector "${config.selector}" was not found.`);
+            }
         } else if (config.type === "text") {
+            if (!element) {
+                const diag = diagnosePageFailure();
+                if (diag) {
+                    throw new Error(diag);
+                }
+                throw new Error(`Element with selector "${config.selector}" was not found.`);
+            }
             const rawText = element.innerText || element.textContent || '';
             finalValue = rawText.trim();
         }
@@ -815,6 +1904,13 @@ async function executeScrapingTask(config) {
             itemConfig: config,
             value: finalValue,
             currency: currency,
+            originalPrice: originalPrice,
+            discountPercent: discountPercent,
+            discountAmount: discountAmount,
+            isPromo: isPromo,
+            promoBadge: promoBadge,
+            stockStatus: stockStatus,
+            autoHealedSelector: autoHealedSelector,
             timestamp: new Date().toISOString()
         });
 

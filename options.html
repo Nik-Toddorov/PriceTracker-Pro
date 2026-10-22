@@ -277,6 +277,39 @@
         .log-item-card.increase { border-left-color: var(--danger-color); }
         .log-item-card.text { border-left-color: #ffc107; }
 
+        @keyframes notifHighlightPulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.75), 0 0 25px rgba(13, 110, 253, 0.45);
+                border-color: var(--link-color);
+                outline: 2px solid var(--link-color);
+                transform: scale(1.015);
+            }
+            30% {
+                box-shadow: 0 0 0 10px rgba(13, 110, 253, 0.35), 0 0 35px rgba(13, 110, 253, 0.3);
+                border-color: var(--link-color);
+                outline: 2px solid var(--link-color);
+                transform: scale(1.015);
+            }
+            70% {
+                box-shadow: 0 0 0 18px rgba(13, 110, 253, 0), 0 0 15px rgba(13, 110, 253, 0.15);
+                border-color: var(--link-color);
+                outline: 2px solid transparent;
+                transform: scale(1);
+            }
+            100% {
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                border-color: var(--border-color);
+                outline: none;
+                transform: scale(1);
+            }
+        }
+
+        .log-item-card.highlight-notification-pulse {
+            animation: notifHighlightPulse 3.5s cubic-bezier(0.25, 1, 0.5, 1) forwards !important;
+            position: relative;
+            z-index: 10;
+        }
+
         .log-card-header {
             display: flex;
             justify-content: space-between;
@@ -426,6 +459,81 @@
             padding: 4px 8px;
             font-size: 12px;
         }
+
+        /* Promotion & Discount Tracking Styles */
+        .badge-promo {
+            background: linear-gradient(135deg, #ff4757, #ff6b81);
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            letter-spacing: 0.3px;
+            box-shadow: 0 1px 4px rgba(255, 71, 87, 0.35);
+        }
+        .badge-cat-promo {
+            background: linear-gradient(135deg, #ff4757, #ff6b81);
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 2px 7px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(255, 71, 87, 0.3);
+        }
+        .old-price-del {
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: normal;
+            text-decoration: line-through;
+            margin-right: 4px;
+            opacity: 0.85;
+        }
+        .save-amount-tag {
+            color: var(--success-color);
+            font-size: 11px;
+            font-weight: 600;
+            background: var(--success-bg);
+            padding: 1px 6px;
+            border-radius: 3px;
+            border: 1px solid var(--success-color);
+        }
+        .filter-toggle-btn {
+            background: var(--bg-container);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .filter-toggle-btn.active {
+            background: var(--link-color);
+            color: #fff;
+            border-color: var(--link-color);
+            font-weight: 600;
+        }
+        .btn-optimize-selectors {
+            background: linear-gradient(135deg, #8e44ad, #9b59b6);
+            color: #ffffff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .btn-optimize-selectors:hover {
+            opacity: 0.92;
+            transform: translateY(-1px);
+        }
     </style>
     <script src="chart.umd.js"></script>
 </head>
@@ -493,8 +601,17 @@
             </form>
         </div>
 
-        <h3 data-i18n="tracked_items">Tracked Items</h3>
-        <button id="optionsRefreshBtn" class="success" data-i18n="refresh_all_now">🔄 Refresh all now</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 25px; margin-bottom: 12px;">
+            <h3 style="margin: 0;" data-i18n="tracked_items">Tracked Items</h3>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <div style="display: inline-flex; border: 1px solid var(--border-color); border-radius: 5px; overflow: hidden;">
+                    <button type="button" id="filterItemsAll" class="filter-toggle-btn active" data-i18n="filter_all">All</button>
+                    <button type="button" id="filterItemsPromo" class="filter-toggle-btn" data-i18n="filter_promo_only">🔥 On Promotion</button>
+                </div>
+                <button id="optionsRefreshBtn" class="success" style="padding: 6px 12px; font-size: 13px;" data-i18n="refresh_all_now">🔄 Refresh all now</button>
+                <button type="button" id="optimizeSelectorsBtn" class="btn-optimize-selectors" title="Upgrade fragile selectors (deep nth-of-type chains or dynamic IDs) to resilient domain rules" data-i18n="btn_optimize_selectors">⚡ Optimize Selectors</button>
+            </div>
+        </div>
         <div id="trackedItemsList">
             <p data-i18n="loading">Loading...</p>
         </div>
@@ -555,6 +672,7 @@
                 <select id="historyTypeFilter">
                     <option value="all" data-i18n="filter_all_types">All Changes</option>
                     <option value="drop" data-i18n="filter_price_drops">📉 Price Drops</option>
+                    <option value="promo" data-i18n="filter_promo_changes">🔥 Promotions</option>
                     <option value="increase" data-i18n="filter_price_increases">📈 Price Increases</option>
                     <option value="text" data-i18n="filter_text_changes">📝 Text Changes</option>
                 </select>

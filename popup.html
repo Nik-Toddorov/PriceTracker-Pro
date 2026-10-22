@@ -195,13 +195,73 @@
             border-bottom: 1px dashed var(--row-border);
             padding-bottom: 4px;
         }
+
+        /* Promotion Tracking Styles */
+        .badge-promo {
+            background: linear-gradient(135deg, #ff4757, #ff6b81);
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 3px;
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            box-shadow: 0 1px 3px rgba(255, 71, 87, 0.35);
+        }
+        .badge-cat-promo {
+            background: linear-gradient(135deg, #ff4757, #ff6b81);
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: bold;
+            padding: 1px 5px;
+            border-radius: 10px;
+        }
+        .old-price-del {
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: normal;
+            text-decoration: line-through;
+            margin-right: 4px;
+            opacity: 0.85;
+        }
+        .save-amount-tag {
+            color: var(--success-color);
+            font-size: 10px;
+            font-weight: 600;
+            background: var(--success-bg);
+            padding: 1px 4px;
+            border-radius: 2px;
+            border: 1px solid var(--success-color);
+        }
+        .filter-toggle-btn {
+            background: var(--bg-container);
+            color: var(--text-main);
+            border: none;
+            padding: 5px 8px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .filter-toggle-btn.active {
+            background: var(--link-color);
+            color: #ffffff;
+            font-weight: 600;
+        }
     </style>
     <script src="chart.umd.js"></script>
 </head>
 <body>
     <h3 data-i18n="app_title">Price Tracker Pro</h3>
     
-    <button id="refreshAllBtn" style="background-color: var(--success-color); margin-bottom: 15px; width: 100%;" data-i18n="refresh_all_btn">🔄 Refresh All Sites</button>
+    <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center; justify-content: space-between;">
+        <div style="display: inline-flex; border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden; flex: 1;">
+            <button type="button" id="popupFilterAll" class="filter-toggle-btn active" style="flex: 1;" data-i18n="filter_all">All</button>
+            <button type="button" id="popupFilterPromo" class="filter-toggle-btn" style="flex: 1;" data-i18n="filter_promo_only">🔥 On Promotion</button>
+        </div>
+        <button id="refreshAllBtn" style="background-color: var(--success-color); padding: 5px 10px; font-size: 11px; margin-bottom: 0;" data-i18n="refresh_all_btn">🔄 Refresh All</button>
+    </div>
     
     <div id="trackedItemsList">
         <p style="text-align:center;" data-i18n="loading">Loading...</p>

@@ -72,6 +72,8 @@ try {
     if (Array.isArray(saved)) saved.forEach(k => expandedCategories.add(k));
 } catch (e) { }
 
+let promoFilterActive = false;
+
 function getCurrentlyOpenCategories() {
     const openSet = new Set(expandedCategories);
     document.querySelectorAll('.category-block').forEach(block => {
@@ -99,9 +101,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderTrackedItems();
     await renderExportCheckboxes();
     await renderChangeHistoryLog();
+    await checkPendingNotificationHighlight();
 
     // 2. Event Listeners for forms and buttons
     document.getElementById('optionsRefreshBtn').addEventListener('click', handleManualRefresh);
+
+    const filterAllBtn = document.getElementById('filterItemsAll');
+    const filterPromoBtn = document.getElementById('filterItemsPromo');
+    if (filterAllBtn && filterPromoBtn) {
+        filterAllBtn.addEventListener('click', () => {
+            promoFilterActive = false;
+            filterAllBtn.classList.add('active');
+            filterPromoBtn.classList.remove('active');
+            renderTrackedItems();
+        });
+        filterPromoBtn.addEventListener('click', () => {
+            promoFilterActive = true;
+            filterPromoBtn.classList.add('active');
+            filterAllBtn.classList.remove('active');
+            renderTrackedItems();
+        });
+    }
+
+    const optimizeSelectorsBtn = document.getElementById('optimizeSelectorsBtn');
+    if (optimizeSelectorsBtn) {
+        optimizeSelectorsBtn.addEventListener('click', async () => {
+            optimizeSelectorsBtn.disabled = true;
+            optimizeSelectorsBtn.innerText = t("optimizing");
+            try {
+                chrome.runtime.sendMessage({ action: "optimize_selectors" }, (res) => {
+                    optimizeSelectorsBtn.disabled = false;
+                    optimizeSelectorsBtn.innerText = t("btn_optimize_selectors");
+                    if (chrome.runtime.lastError) {
+                        alert(t("error_prefix") + chrome.runtime.lastError.message);
+                        return;
+                    }
+                    if (res && res.success) {
+                        if (res.optimizedCount > 0) {
+                            alert(t("optimize_success", { count: res.optimizedCount }));
+                            renderTrackedItems();
+                        } else {
+                            alert(t("optimize_none_needed"));
+                        }
+                    }
+                });
+            } catch (err) {
+                optimizeSelectorsBtn.disabled = false;
+                optimizeSelectorsBtn.innerText = t("btn_optimize_selectors");
+                alert(t("error_prefix") + err.message);
+            }
+        });
+    }
+
     document.getElementById('addItemForm').addEventListener('submit', handleAddItem);
     document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
     document.getElementById('exportBtn').addEventListener('click', exportData);
@@ -238,9 +289,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, delay);
     }
 
-    // Listen for storage changes (picker data or updated prices from background)
+    // Listen for storage changes (picker data, notification navigation, or updated prices from background)
     chrome.storage.onChanged.addListener((changes, namespace) => {
         if (namespace === 'local') {
+            if (changes.openTargetTab || changes.targetHighlightEventId) {
+                checkPendingNotificationHighlight();
+            }
             if (changes.latestPickerData && changes.latestPickerData.newValue) {
                 handlePickerResult(changes.latestPickerData.newValue);
             }
@@ -251,6 +305,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 renderChangeHistoryLog();
             }
         }
+    });
+
+    // Listen for live navigation messages from notifications while options page is open
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message && message.action === 'open_history_and_scroll_to_event') {
+            lastHandledHighlightTs = Date.now();
+            scrollToAndHighlightHistoryEvent(message.eventId, message.itemId);
+            sendResponse({ success: true });
+            return true;
+        }
+    });
+
+    // Check for pending notification highlights when options tab receives focus
+    window.addEventListener('focus', () => {
+        checkPendingNotificationHighlight();
     });
 
     // Check for existing picker data on open
@@ -347,30 +416,131 @@ function handleListClicks(e) {
     }
 }
 
-// --- TABS LOGIC ---
-function initTabs() {
+// --- TABS LOGIC & NOTIFICATION TARGETING ---
+let highlightTimeoutId = null;
+let lastHandledHighlightTs = 0;
+let isHandlingHighlight = false;
+
+function activateTab(targetId) {
     const tabs = document.querySelectorAll('.tab');
     const contents = document.querySelectorAll('.tab-content');
+    tabs.forEach(t => {
+        if (t.dataset.target === targetId) t.classList.add('active');
+        else t.classList.remove('active');
+    });
+    contents.forEach(c => {
+        if (c.id === targetId) c.classList.add('active');
+        else c.classList.remove('active');
+    });
+}
 
-    function activateTab(targetId) {
-        tabs.forEach(t => {
-            if (t.dataset.target === targetId) t.classList.add('active');
-            else t.classList.remove('active');
-        });
-        contents.forEach(c => {
-            if (c.id === targetId) c.classList.add('active');
-            else c.classList.remove('active');
-        });
+/**
+ * Opens the Change History tab, resets any filters so the card is visible,
+ * scrolls smoothly to the target event card, and plays a visual pulse highlight.
+ */
+async function scrollToAndHighlightHistoryEvent(targetEventId, targetItemId) {
+    // 1. Switch tab
+    activateTab('tab-history-log');
+    try {
+        sessionStorage.setItem('activeOptionsTab', 'tab-history-log');
+    } catch (e) { }
+
+    // 2. Clear filter inputs so the event is rendered
+    const searchInput = document.getElementById('historySearchInput');
+    const typeFilter = document.getElementById('historyTypeFilter');
+    const catFilter = document.getElementById('historyCatFilter');
+
+    if (searchInput && searchInput.value) searchInput.value = '';
+    if (typeFilter && typeFilter.value !== 'all') typeFilter.value = 'all';
+    if (catFilter && catFilter.value !== 'all') catFilter.value = 'all';
+
+    // 3. Render fresh cards
+    await renderChangeHistoryLog();
+
+    // 4. Locate target card
+    const findCard = () => {
+        if (targetEventId) {
+            try {
+                const el = document.querySelector(`.log-item-card[data-logid="${CSS.escape(targetEventId)}"]`)
+                        || document.getElementById(`log_card_${targetEventId}`);
+                if (el) return el;
+            } catch (_) { }
+        }
+        if (targetItemId) {
+            try {
+                const el = document.querySelector(`.log-item-card[data-itemid="${CSS.escape(targetItemId)}"]`);
+                if (el) return el;
+            } catch (_) { }
+        }
+        return null;
+    };
+
+    let targetEl = findCard();
+
+    // If not found immediately (e.g. storage async update in flight), wait briefly and retry once
+    if (!targetEl) {
+        await new Promise(r => setTimeout(r, 250));
+        await renderChangeHistoryLog();
+        targetEl = findCard();
     }
 
+    if (targetEl) {
+        setTimeout(() => {
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            document.querySelectorAll('.highlight-notification-pulse').forEach(el => {
+                el.classList.remove('highlight-notification-pulse');
+            });
+
+            void targetEl.offsetWidth; // Force reflow to re-trigger animation
+            targetEl.classList.add('highlight-notification-pulse');
+
+            if (highlightTimeoutId) clearTimeout(highlightTimeoutId);
+            highlightTimeoutId = setTimeout(() => {
+                targetEl.classList.remove('highlight-notification-pulse');
+            }, 4500);
+        }, 120);
+    }
+
+    // 5. Clean up pending highlight state from storage
+    try {
+        await chrome.storage.local.remove(['openTargetTab', 'targetHighlightEventId', 'targetHighlightItemId']);
+    } catch (_) { }
+}
+
+/**
+ * Checks storage for any pending notification highlight actions and executes them.
+ */
+async function checkPendingNotificationHighlight() {
+    if (isHandlingHighlight) return;
+    try {
+        const data = await chrome.storage.local.get(['openTargetTab', 'targetHighlightEventId', 'targetHighlightItemId', 'targetHighlightTimestamp']);
+        if (data.openTargetTab === 'tab-history-log' || data.targetHighlightEventId || data.targetHighlightItemId) {
+            const ts = data.targetHighlightTimestamp || 1;
+            if (ts === lastHandledHighlightTs) return;
+            lastHandledHighlightTs = ts;
+            isHandlingHighlight = true;
+            await scrollToAndHighlightHistoryEvent(data.targetHighlightEventId, data.targetHighlightItemId);
+        }
+    } catch (e) {
+        console.warn("Failed checking notification highlight:", e);
+    } finally {
+        isHandlingHighlight = false;
+    }
+}
+
+function initTabs() {
+    const tabs = document.querySelectorAll('.tab');
+
     // Check if background service worker set openTargetTab (e.g. from notification click)
-    chrome.storage.local.get(['openTargetTab'], (res) => {
+    chrome.storage.local.get(['openTargetTab', 'targetHighlightEventId', 'targetHighlightItemId'], (res) => {
         if (res && res.openTargetTab && document.getElementById(res.openTargetTab)) {
             sessionStorage.setItem('activeOptionsTab', res.openTargetTab);
-            chrome.storage.local.remove('openTargetTab');
             activateTab(res.openTargetTab);
             if (res.openTargetTab === 'tab-history-log') {
-                renderChangeHistoryLog();
+                scrollToAndHighlightHistoryEvent(res.targetHighlightEventId, res.targetHighlightItemId);
+            } else {
+                chrome.storage.local.remove('openTargetTab');
             }
         }
     });
@@ -608,6 +778,12 @@ async function renderTrackedItems() {
     const data = await chrome.storage.local.get('trackingData');
     const trackingData = data.trackingData || {};
 
+    // Auto-heal any corrupted 100x promotions in database on render
+    if (sanitizeTrackingDataPromotions(trackingData)) {
+        await chrome.storage.local.set({ trackingData });
+        console.log('[Options] Auto-healed corrupted promotion prices in trackingData.');
+    }
+
     // Populate category dropdown with existing categories
     const catSelect = document.getElementById('catSelect');
     if (catSelect) {
@@ -645,9 +821,26 @@ async function renderTrackedItems() {
         return;
     }
 
+    let totalRenderedItems = 0;
+
     // Iterate over categories
     for (const [catKey, catData] of Object.entries(trackingData)) {
-        if (catData.items.length === 0) continue;
+        if (!catData || !Array.isArray(catData.items) || catData.items.length === 0) continue;
+
+        // Count promos in category
+        let catPromoCount = 0;
+        catData.items.forEach(item => {
+            if (item.type === 'price' && (item.isPromo || (item.discountPercent && item.discountPercent > 0))) {
+                catPromoCount++;
+            }
+        });
+
+        // Filter items if promo filter is active
+        const itemsToRender = promoFilterActive
+            ? catData.items.filter(item => item.type === 'price' && (item.isPromo || (item.discountPercent && item.discountPercent > 0)))
+            : catData.items;
+
+        if (itemsToRender.length === 0) continue;
 
         const isExpanded = currentOpenCats.has(catKey);
         const arrowIcon = isExpanded ? '▴' : '▾';
@@ -679,6 +872,9 @@ async function renderTrackedItems() {
         const catCurrency = catData.items.find(i => i.type === 'price')?.currency || '€';
         const catTrend = hasPrice ? getCategoryTrend(catData) : '';
         const unreadBadge = hasUnreadText ? `<span class="badge-text-changed" title="${t("text_changed_badge")}">⚠️</span>` : '';
+        const catPromoBadge = catPromoCount > 0 
+            ? `<span class="badge-cat-promo" title="${t("on_promo_tooltip")}">🔥 ${catPromoCount}</span>` 
+            : '';
         const catPriceSummary = hasPrice 
             ? `<span style="color: var(--success-color); font-size: 14px; font-weight: bold; white-space: nowrap; display: flex; align-items: center; gap: 5px;">(${catBestPrice} ${catCurrency}) ${catTrend}</span>` 
             : '';
@@ -690,9 +886,10 @@ async function renderTrackedItems() {
         const header = document.createElement('div');
         header.className = 'category-header';
         header.innerHTML = `
-            <div class="toggle-cat" data-catkey="${escapeHtml(catKey)}" style="cursor: pointer; flex-grow: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div class="toggle-cat" data-catkey="${escapeHtml(catKey)}" style="cursor: pointer; flex-grow: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
                 <span style="font-size: 16px; white-space: nowrap;">📁 <b>${escapeHtml(catData.categoryName)}</b></span>
                 ${catPriceSummary}
+                ${catPromoBadge}
                 ${unreadBadge}
                 <span class="arrow-icon">${arrowIcon}</span>
             </div>
@@ -710,7 +907,8 @@ async function renderTrackedItems() {
         itemsContainer.style.display = isExpanded ? 'block' : 'none';
 
         // Iterate over products in category
-        catData.items.forEach(item => {
+        itemsToRender.forEach(item => {
+            totalRenderedItems++;
             const row = document.createElement('div');
             row.className = 'item-row';
 
@@ -751,6 +949,7 @@ async function renderTrackedItems() {
             if (item.type === 'price') {
                 let currentPriceDisplay = t("no_data");
                 let bestPriceDisplay = "";
+                let promoHtml = "";
                 const itemTrend = getItemTrend(item);
 
                 if (item.history && item.history.length > 0) {
@@ -762,15 +961,40 @@ async function renderTrackedItems() {
                     if (minVal < currentVal) {
                         bestPriceDisplay = ` <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">(${t("best_price")}: ${minVal} ${currency})</span>`;
                     }
+
+                    const isPromo = item.isPromo || (item.discountPercent && item.discountPercent > 0);
+                    if (isPromo) {
+                        const badgeLabel = item.promoBadge || (item.discountPercent ? `-${item.discountPercent}%` : t("promo_badge"));
+                        let originalPriceHtml = '';
+                        if (item.originalPrice && item.originalPrice > currentVal) {
+                            originalPriceHtml = `<del class="old-price-del" title="${t("regular_price")}">${item.originalPrice} ${currency}</del>`;
+                        }
+                        let saveHtml = '';
+                        const saveAmount = item.discountAmount || (item.originalPrice && item.originalPrice > currentVal ? (item.originalPrice - currentVal) : 0);
+                        if (saveAmount > 0) {
+                            saveHtml = `<span class="save-amount-tag">${t("save_label")} ${saveAmount.toFixed(2)} ${currency}</span>`;
+                        }
+
+                        promoHtml = `
+                            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 3px;">
+                                <span class="badge-promo" title="${t("on_promo_tooltip")}">🔥 ${escapeHtml(badgeLabel)}</span>
+                                ${originalPriceHtml}
+                                ${saveHtml}
+                            </div>
+                        `;
+                    }
                 }
 
                 mainContentHtml = `
-                    <div style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: bold; color: var(--text-strong);">
-                        <span>${t("current_price")}:</span>
-                        <span>${currentPriceDisplay}</span>
-                        ${itemTrend}
-                        ${bestPriceDisplay}
-                        ${errorBadge}
+                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                        <div style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: bold; color: var(--text-strong); flex-wrap: wrap;">
+                            <span>${t("current_price")}:</span>
+                            <span>${currentPriceDisplay}</span>
+                            ${itemTrend}
+                            ${bestPriceDisplay}
+                            ${errorBadge}
+                        </div>
+                        ${promoHtml}
                     </div>
                 `;
             } else {
@@ -829,6 +1053,15 @@ async function renderTrackedItems() {
 
         catBlock.appendChild(itemsContainer);
         container.appendChild(catBlock);
+    }
+
+    if (totalRenderedItems === 0 && promoFilterActive) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 35px 20px; background: var(--bg-main); border: 1px dashed var(--border-color); border-radius: 6px; color: var(--text-muted); margin-top: 10px;">
+                <div style="font-size: 32px; margin-bottom: 8px;">🔥</div>
+                <div style="font-size: 14px; font-weight: 600;">${t("no_promo_items")}</div>
+            </div>
+        `;
     }
 
     // 2. Seamlessly restore scroll positions
@@ -997,6 +1230,9 @@ async function importData() {
     reader.onload = async function (e) {
         try {
             const importedData = JSON.parse(e.target.result);
+
+            // Sanitize imported data to correct any dropped decimals or 100x outliers
+            sanitizeTrackingDataPromotions(importedData);
 
             // Get current tracking database
             const data = await chrome.storage.local.get('trackingData');
@@ -2079,7 +2315,11 @@ async function getAllChangeEvents() {
                     difference: diff,
                     percentChange: percent,
                     changeType: changeType,
-                    isLowest: isLowest
+                    isLowest: isLowest,
+                    isPromo: curr.isPromo || item.isPromo || false,
+                    promoBadge: curr.promoBadge || item.promoBadge || null,
+                    originalPrice: curr.originalPrice || item.originalPrice || null,
+                    discountPercent: curr.discountPercent || item.discountPercent || null
                 });
             }
         }
@@ -2126,7 +2366,7 @@ async function renderChangeHistoryLog() {
     allEvents.forEach(ev => {
         if (ev.categoryName) categoriesSet.add(ev.categoryName);
         if (ev.type === 'price') {
-            if (ev.changeType === 'drop') totalDrops++;
+            if (ev.changeType === 'drop' || ev.changeType === 'promo_drop') totalDrops++;
             else if (ev.changeType === 'increase') totalIncreases++;
         } else if (ev.type === 'text') {
             totalText++;
@@ -2166,7 +2406,8 @@ async function renderChangeHistoryLog() {
 
     const filteredEvents = allEvents.filter(ev => {
         // Type filter
-        if (typeFilterVal === 'drop' && ev.changeType !== 'drop') return false;
+        if (typeFilterVal === 'drop' && ev.changeType !== 'drop' && ev.changeType !== 'promo_drop') return false;
+        if (typeFilterVal === 'promo' && ev.changeType !== 'promo_drop' && !ev.isPromo && !ev.promoBadge) return false;
         if (typeFilterVal === 'increase' && ev.changeType !== 'increase') return false;
         if (typeFilterVal === 'text' && ev.type !== 'text') return false;
 
@@ -2213,10 +2454,14 @@ async function renderChangeHistoryLog() {
             const pctAbs = ev.percentChange !== null ? Math.abs(ev.percentChange) : 0;
             const curr = ev.currency || '€';
 
-            if (ev.changeType === 'drop') {
+            if (ev.changeType === 'drop' || ev.changeType === 'promo_drop') {
                 changeBadgeHtml = `<span class="badge-change-pill drop">📉 -${diffAbs} ${escapeHtml(curr)} (-${pctAbs}%)</span>`;
             } else {
                 changeBadgeHtml = `<span class="badge-change-pill increase">📈 +${diffAbs} ${escapeHtml(curr)} (+${pctAbs}%)</span>`;
+            }
+            if (ev.isPromo || ev.changeType === 'promo_drop' || ev.promoBadge) {
+                const promoText = ev.promoBadge || (ev.discountPercent ? `-${ev.discountPercent}%` : t("promo_badge"));
+                changeBadgeHtml += ` <span class="badge-promo">🔥 ${escapeHtml(promoText)}</span>`;
             }
             if (ev.isLowest) {
                 changeBadgeHtml += ` <span class="badge-lowest-star">${t("badge_all_time_low")}</span>`;
@@ -2270,7 +2515,7 @@ async function renderChangeHistoryLog() {
         }
 
         html += `
-            <div class="log-item-card ${ev.changeType || 'drop'}" data-logid="${escapeHtml(ev.id)}">
+            <div class="log-item-card ${ev.changeType || 'drop'}" id="log_card_${escapeHtml(ev.id)}" data-logid="${escapeHtml(ev.id)}" data-itemid="${escapeHtml(ev.itemId)}">
                 <div class="log-card-header">
                     <div class="log-card-meta">
                         <span class="log-category-pill">📁 ${escapeHtml(ev.categoryName)}</span>
@@ -2396,5 +2641,60 @@ async function exportChangeHistoryLog() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+}
+
+// Auto-heals dropped decimals (e.g. 16490 -> 164.90) and cleans 100x outliers
+function sanitizeTrackingDataPromotions(trackingData) {
+    let modified = false;
+    if (!trackingData) return false;
+
+    for (const catKey in trackingData) {
+        const cat = trackingData[catKey];
+        if (!cat || !Array.isArray(cat.items)) continue;
+
+        for (const item of cat.items) {
+            if (item.type !== 'price') continue;
+            const history = item.history || [];
+            const currVal = history.length > 0 ? parseFloat(history[history.length - 1].value) : null;
+            if (!currVal || isNaN(currVal) || currVal <= 0) continue;
+
+            if (item.originalPrice && item.originalPrice > currVal * 10) {
+                const candidate = +(item.originalPrice / 100).toFixed(2);
+                if (candidate > currVal && candidate < currVal * 2.5) {
+                    item.originalPrice = candidate;
+                    item.discountAmount = +(candidate - currVal).toFixed(2);
+                    item.discountPercent = Math.round(((candidate - currVal) / candidate) * 100);
+                    item.promoBadge = `-${item.discountPercent}%`;
+                    item.isPromo = true;
+                } else {
+                    item.originalPrice = null;
+                    item.discountAmount = null;
+                    item.discountPercent = null;
+                    item.isPromo = false;
+                    item.promoBadge = null;
+                }
+                modified = true;
+            }
+
+            if (Array.isArray(item.history)) {
+                for (const h of item.history) {
+                    if (h.originalPrice && h.originalPrice > (h.value || currVal) * 10) {
+                        const hVal = parseFloat(h.value) || currVal;
+                        const cand = +(h.originalPrice / 100).toFixed(2);
+                        if (cand > hVal && cand < hVal * 2.5) {
+                            h.originalPrice = cand;
+                            h.discountPercent = Math.round(((cand - hVal) / cand) * 100);
+                        } else {
+                            delete h.originalPrice;
+                            delete h.discountPercent;
+                            delete h.isPromo;
+                        }
+                        modified = true;
+                    }
+                }
+            }
+        }
+    }
+    return modified;
 }
 

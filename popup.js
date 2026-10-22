@@ -72,6 +72,8 @@ try {
     if (Array.isArray(saved)) saved.forEach(k => expandedCategories.add(k));
 } catch (e) { }
 
+let promoFilterActive = false;
+
 function getCurrentlyOpenCategories() {
     const openSet = new Set(expandedCategories);
     document.querySelectorAll('.category-block').forEach(block => {
@@ -91,6 +93,24 @@ function getCurrentlyOpenCategories() {
 document.addEventListener('DOMContentLoaded', async () => {
     await initLang();
     applyTranslations();
+
+    // Filter tabs
+    const filterAllBtn = document.getElementById('popupFilterAll');
+    const filterPromoBtn = document.getElementById('popupFilterPromo');
+    if (filterAllBtn && filterPromoBtn) {
+        filterAllBtn.addEventListener('click', () => {
+            promoFilterActive = false;
+            filterAllBtn.classList.add('active');
+            filterPromoBtn.classList.remove('active');
+            renderTrackedItems();
+        });
+        filterPromoBtn.addEventListener('click', () => {
+            promoFilterActive = true;
+            filterPromoBtn.classList.add('active');
+            filterAllBtn.classList.remove('active');
+            renderTrackedItems();
+        });
+    }
 
     // Open options page button
     document.getElementById('openOptionsBtn').addEventListener('click', () => {
@@ -164,6 +184,12 @@ async function renderTrackedItems() {
     const data = await chrome.storage.local.get('trackingData');
     const trackingData = data.trackingData || {};
 
+    // Auto-heal any corrupted 100x promotions in database on render
+    if (sanitizeTrackingDataPromotions(trackingData)) {
+        await chrome.storage.local.set({ trackingData });
+        console.log('[Popup] Auto-healed corrupted promotion prices in trackingData.');
+    }
+
     container.innerHTML = ''; 
 
     if (Object.keys(trackingData).length === 0) {
@@ -171,8 +197,25 @@ async function renderTrackedItems() {
         return;
     }
 
+    let totalRenderedItems = 0;
+
     for (const [catKey, catData] of Object.entries(trackingData)) {
         if (!catData || !Array.isArray(catData.items) || catData.items.length === 0) continue;
+
+        // Count promos in category
+        let catPromoCount = 0;
+        catData.items.forEach(item => {
+            if (item.type === 'price' && (item.isPromo || (item.discountPercent && item.discountPercent > 0))) {
+                catPromoCount++;
+            }
+        });
+
+        // Filter items if promo filter is active
+        const itemsToRender = promoFilterActive
+            ? catData.items.filter(item => item.type === 'price' && (item.isPromo || (item.discountPercent && item.discountPercent > 0)))
+            : catData.items;
+
+        if (itemsToRender.length === 0) continue;
 
         const isExpanded = currentOpenCats.has(catKey);
         const arrowIcon = isExpanded ? '▴' : '▾';
@@ -201,6 +244,9 @@ async function renderTrackedItems() {
         const catCurrency = catData.items.find(i => i.type === 'price')?.currency || '€';
         const catTrend = hasPrice ? getCategoryTrend(catData) : '';
         const unreadBadge = hasUnreadText ? `<span class="badge-text-changed" title="${t("text_changed_badge")}">⚠️</span>` : '';
+        const catPromoBadge = catPromoCount > 0 
+            ? `<span class="badge-cat-promo" title="${t("on_promo_tooltip")}">🔥 ${catPromoCount}</span>` 
+            : '';
         const catPriceSummary = hasPrice 
             ? `<span style="color: var(--success-color); font-weight: bold; display: flex; align-items: center; gap: 4px;">(${catBestPrice} ${catCurrency}) ${catTrend}</span>` 
             : '';
@@ -211,9 +257,10 @@ async function renderTrackedItems() {
         const header = document.createElement('div');
         header.className = 'category-header';
         header.innerHTML = `
-            <div class="toggle-cat" data-catkey="${escapeHtml(catKey)}" style="cursor: pointer; flex-grow: 1; display: flex; align-items: center; font-size:12px; gap: 4px;">
+            <div class="toggle-cat" data-catkey="${escapeHtml(catKey)}" style="cursor: pointer; flex-grow: 1; display: flex; align-items: center; font-size:12px; gap: 6px; flex-wrap: wrap;">
                 <span>📁 <b>${escapeHtml(catData.categoryName)}</b></span>
                 ${catPriceSummary}
+                ${catPromoBadge}
                 ${unreadBadge}
                 <span class="arrow-icon">${arrowIcon}</span>
             </div>
@@ -228,7 +275,8 @@ async function renderTrackedItems() {
         itemsContainer.id = `items_${catKey}`;
         itemsContainer.style.display = isExpanded ? 'block' : 'none';
 
-        catData.items.forEach(item => {
+        itemsToRender.forEach(item => {
+            totalRenderedItems++;
             const row = document.createElement('div');
             row.className = 'item-row';
             
@@ -260,9 +308,34 @@ async function renderTrackedItems() {
                 const currentVal = (item.history && item.history.length > 0) ? `${item.history[item.history.length - 1].value} ${currency}` : t("no_data");
                 const itemTrend = getItemTrend(item);
 
+                let promoHtml = '';
+                const isPromo = item.isPromo || (item.discountPercent && item.discountPercent > 0);
+                if (isPromo) {
+                    const badgeLabel = item.promoBadge || (item.discountPercent ? `-${item.discountPercent}%` : t("promo_badge"));
+                    const currentValNum = (item.history && item.history.length > 0) ? parseFloat(item.history[item.history.length - 1].value) : null;
+                    let originalPriceHtml = '';
+                    if (item.originalPrice && (currentValNum === null || item.originalPrice > currentValNum)) {
+                        originalPriceHtml = `<del class="old-price-del" title="${t("regular_price")}">${item.originalPrice} ${currency}</del>`;
+                    }
+                    let saveHtml = '';
+                    const saveAmount = item.discountAmount || (item.originalPrice && currentValNum !== null && item.originalPrice > currentValNum ? +(item.originalPrice - currentValNum).toFixed(2) : 0);
+                    if (saveAmount > 0) {
+                        saveHtml = `<span class="save-amount-tag">${t("save_label")} ${saveAmount.toFixed(2)} ${currency}</span>`;
+                    }
+
+                    promoHtml = `
+                        <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 2px;">
+                            <span class="badge-promo" title="${t("on_promo_tooltip")}">🔥 ${escapeHtml(badgeLabel)}</span>
+                            ${originalPriceHtml}
+                            ${saveHtml}
+                        </div>
+                    `;
+                }
+
                 mainContentHtml = `
                     <div style="font-size: 13px; font-weight: bold; color: var(--text-strong); margin-top: 2px;">
                         <span>${t("current_price")}: ${currentVal} ${itemTrend}${errorBadge}</span>
+                        ${promoHtml}
                     </div>
                 `;
             } else {
@@ -320,6 +393,15 @@ async function renderTrackedItems() {
 
         catBlock.appendChild(itemsContainer);
         container.appendChild(catBlock);
+    }
+
+    if (totalRenderedItems === 0 && promoFilterActive) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 25px 15px; color: var(--text-muted);">
+                <div style="font-size: 26px; margin-bottom: 6px;">🔥</div>
+                <div style="font-size: 12px; font-weight: 600;">${t("no_promo_items")}</div>
+            </div>
+        `;
     }
 
     // 2. Seamlessly restore scroll position
@@ -813,4 +895,59 @@ function getItemTrend(item) {
     if (last < prev) return '<span style="color: var(--success-color); font-size:20px; -webkit-text-stroke: 1px var(--success-color); text-shadow: 0px 0px 1px rgba(0,0,0,0.3);" title="${t("price_dropped")}">↓</span>';
     if (last > prev) return '<span style="color: var(--danger-color); font-size:20px; -webkit-text-stroke: 1px var(--danger-color); text-shadow: 0px 0px 1px rgba(0,0,0,0.3);" title="${t("price_increased")}">↑</span>';
     return '<span style="color: #ffc107; font-size:18px; -webkit-text-stroke: 1px #ffc107; text-shadow: 0px 0px 1px rgba(0,0,0,0.3);" title="${t("no_change")}">○</span>';
+}
+
+// Auto-heals dropped decimals (e.g. 16490 -> 164.90) and cleans 100x outliers
+function sanitizeTrackingDataPromotions(trackingData) {
+    let modified = false;
+    if (!trackingData) return false;
+
+    for (const catKey in trackingData) {
+        const cat = trackingData[catKey];
+        if (!cat || !Array.isArray(cat.items)) continue;
+
+        for (const item of cat.items) {
+            if (item.type !== 'price') continue;
+            const history = item.history || [];
+            const currVal = history.length > 0 ? parseFloat(history[history.length - 1].value) : null;
+            if (!currVal || isNaN(currVal) || currVal <= 0) continue;
+
+            if (item.originalPrice && item.originalPrice > currVal * 10) {
+                const candidate = +(item.originalPrice / 100).toFixed(2);
+                if (candidate > currVal && candidate < currVal * 2.5) {
+                    item.originalPrice = candidate;
+                    item.discountAmount = +(candidate - currVal).toFixed(2);
+                    item.discountPercent = Math.round(((candidate - currVal) / candidate) * 100);
+                    item.promoBadge = `-${item.discountPercent}%`;
+                    item.isPromo = true;
+                } else {
+                    item.originalPrice = null;
+                    item.discountAmount = null;
+                    item.discountPercent = null;
+                    item.isPromo = false;
+                    item.promoBadge = null;
+                }
+                modified = true;
+            }
+
+            if (Array.isArray(item.history)) {
+                for (const h of item.history) {
+                    if (h.originalPrice && h.originalPrice > (h.value || currVal) * 10) {
+                        const hVal = parseFloat(h.value) || currVal;
+                        const cand = +(h.originalPrice / 100).toFixed(2);
+                        if (cand > hVal && cand < hVal * 2.5) {
+                            h.originalPrice = cand;
+                            h.discountPercent = Math.round(((cand - hVal) / cand) * 100);
+                        } else {
+                            delete h.originalPrice;
+                            delete h.discountPercent;
+                            delete h.isPromo;
+                        }
+                        modified = true;
+                    }
+                }
+            }
+        }
+    }
+    return modified;
 }

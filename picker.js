@@ -62,6 +62,41 @@ if (!window.priceTrackerPickerInjected) {
                 if (treeView && !hoveredElement) treeView.innerText = trans[lang].hoverPrompt;
             }
         });
+
+        // Pre-fetch eMAG voucher campaign if active on eMAG
+        if (window.location.hostname.includes('emag.') && !window._emagVoucherData) {
+            try {
+                const addBtn = document.querySelector('[data-offer-id]');
+                let offerId = addBtn ? addBtn.getAttribute('data-offer-id') : null;
+                if (!offerId) {
+                    const prodEl = document.querySelector('[data-product*="offerid"]');
+                    if (prodEl) {
+                        try {
+                            const pData = JSON.parse(prodEl.getAttribute('data-product'));
+                            if (pData && pData.offerid) offerId = String(pData.offerid);
+                        } catch (e) {}
+                    }
+                }
+                if (!offerId) {
+                    const htmlText = document.documentElement.innerHTML || '';
+                    const m = htmlText.match(/data-offer-id=["'](\d+)["']/) ||
+                              htmlText.match(/"offerid"\s*:\s*(\d+)/) ||
+                              htmlText.match(/"offer_id"\s*:\s*(\d+)/);
+                    if (m) offerId = m[1];
+                }
+                if (offerId && /^\d+$/.test(offerId)) {
+                    fetch(`https://sapi.emag.bg/voucher-campaign/product-page/${offerId}`, {
+                        headers: { 'X-Request-Source': 'www' }
+                    }).then(r => r.json()).then(data => {
+                        const notif = data?.data?.notification;
+                        if (notif && (notif.discount_value > 0 || notif.discount_percent > 0)) {
+                            window._emagVoucherData = notif;
+                            if (hoveredElement) updatePanel(hoveredElement);
+                        }
+                    }).catch(() => {});
+                }
+            } catch (e) {}
+        }
         
         const style = document.createElement('style');
         style.textContent = `
@@ -212,8 +247,22 @@ if (!window.priceTrackerPickerInjected) {
     function getCssSelector(el) {
         if (!(el instanceof Element)) return "";
         
-        // 1. If element has a valid unique ID
-        if (el.id && !/^\d+$/.test(el.id) && !el.id.includes('ember') && !el.id.includes('react-')) {
+        // Check if element is inside a recognized eCommerce price container
+        const semanticPrice = el.closest ? el.closest('.product-new-price, .special-price, .price-new, .current-price, .a-price, .product-price-col, .price-buy, .row-price, .product-price, .price-box, .price-wrapper, [data-price-type="finalPrice"], sd-price') : null;
+        if (semanticPrice) {
+            const tag = semanticPrice.tagName.toLowerCase();
+            for (const cls of ['product-new-price', 'special-price', 'price-new', 'current-price', 'product-price-col', 'price-buy', 'row-price']) {
+                if (semanticPrice.classList && semanticPrice.classList.contains(cls)) {
+                    const s = `.${cls}`;
+                    if (document.querySelectorAll(s).length === 1) return s;
+                    const ts = `${tag}.${cls}`;
+                    if (document.querySelectorAll(ts).length === 1) return ts;
+                }
+            }
+        }
+
+        // 1. If element has a valid unique ID (avoid dynamic IDs with timestamps or numbers like product-options-767908)
+        if (el.id && !/^\d+$/.test(el.id) && !/\d{4,}/.test(el.id) && !/product-options-\d+/i.test(el.id) && !el.id.includes('ember') && !el.id.includes('react-')) {
             try {
                 if (document.querySelectorAll('#' + CSS.escape(el.id)).length === 1) {
                     return '#' + CSS.escape(el.id);
@@ -226,7 +275,8 @@ if (!window.priceTrackerPickerInjected) {
             const classes = el.className.split(/\s+/).filter(c => 
                 c && 
                 !/^(active|hover|focus|selected|open|closed|show|hide|visible|ng-|css-|styled-|d-|flex|justify-|align-|row|col|grid|container|m-|p-|w-|h-)/i.test(c) &&
-                !/^\d+$/.test(c)
+                !/^\d+$/.test(c) &&
+                !/\d{4,}/.test(c)
             );
             
             if (classes.length > 0) {
@@ -244,7 +294,7 @@ if (!window.priceTrackerPickerInjected) {
         }
 
         // 3. Try standard semantic/eCommerce attributes
-        for (const attr of ['itemprop', 'data-testid', 'data-qa', 'data-cy', 'data-test']) {
+        for (const attr of ['itemprop', 'data-testid', 'data-qa', 'data-cy', 'data-test', 'data-price-type']) {
             const val = el.getAttribute(attr);
             if (val) {
                 const attrSel = `[${attr}="${CSS.escape(val)}"]`;
@@ -256,7 +306,7 @@ if (!window.priceTrackerPickerInjected) {
             }
         }
 
-        // 4. Concise hierarchical path (max 3 levels)
+        // 4. Concise hierarchical path (max 3 levels, avoid long nth-of-type chains)
         const path = [];
         let curr = el;
         let depth = 0;
@@ -264,7 +314,7 @@ if (!window.priceTrackerPickerInjected) {
         while (curr && curr.nodeType === Node.ELEMENT_NODE && depth < 3) {
             let seg = curr.nodeName.toLowerCase();
 
-            if (curr.id && !/^\d+$/.test(curr.id) && !curr.id.includes('ember')) {
+            if (curr.id && !/^\d+$/.test(curr.id) && !/\d{4,}/.test(curr.id) && !curr.id.includes('ember')) {
                 try {
                     seg += '#' + CSS.escape(curr.id);
                     path.unshift(seg);
@@ -274,7 +324,7 @@ if (!window.priceTrackerPickerInjected) {
 
             if (curr.className && typeof curr.className === 'string') {
                 const validClasses = curr.className.split(/\s+/).filter(c => 
-                    c && !/^(active|hover|focus|selected|open|closed|show|hide|visible|ng-|css-|styled-|d-|flex|justify-|align-|row|col|grid|container|m-|p-|w-|h-)/i.test(c) && !/^\d+$/.test(c)
+                    c && !/^(active|hover|focus|selected|open|closed|show|hide|visible|ng-|css-|styled-|d-|flex|justify-|align-|row|col|grid|container|m-|p-|w-|h-)/i.test(c) && !/^\d+$/.test(c) && !/\d{4,}/.test(c)
                 );
                 if (validClasses.length > 0) {
                     seg += '.' + CSS.escape(validClasses[0]);
@@ -310,13 +360,31 @@ if (!window.priceTrackerPickerInjected) {
 
         function parseNum(targetText) {
             if (!targetText) return null;
-            let s = String(targetText).trim().replace(/[^0-9.,]/g, '');
+            let clean = String(targetText).replace(/\u00a0/g, ' ').replace(/(?:^|[^\d])\d+\s*(?:дни|дена|ден|days?|d|ч|часа|час|hours?)(?=[^\p{L}\p{N}]|$)/gui, ' ');
+            clean = clean.replace(/[\s.,:;!?-]+$/, '');
+
+            const currSymbols = '€|EUR|лв\\.?|BGN|\\$|USD|£|GBP|Lei|RON|zł|PLN|CHF';
+            const tokenRegex = new RegExp(`(?:^|[^\\w.,])(\\d{1,3}(?:[ .]\\d{3})*(?:[.,]\\d{1,2})|\\d+(?:[.,]\\d{1,2}))\\s*(?:${currSymbols})?(?=[^\\w]|$)`, 'i');
+            const tokenMatch = clean.match(tokenRegex);
+
+            let s = tokenMatch ? tokenMatch[1] : clean.replace(/[^0-9.,]/g, '');
             if (!s || !/\d/.test(s)) return null;
+
+            s = s.trim().replace(/[\s.,]+$/, '');
+            s = s.replace(/\s+/g, '');
+
             const lastComma = s.lastIndexOf(',');
             const lastDot = s.lastIndexOf('.');
             if (lastComma > -1 && lastDot > -1) {
                 if (lastComma > lastDot) s = s.replace(/\./g, '').replace(',', '.');
-                else s = s.replace(/,/g, '');
+                else {
+                    const afterDot = s.length - lastDot - 1;
+                    if (afterDot === 2 || afterDot === 1) {
+                        s = s.replace(/,/g, '');
+                    } else {
+                        s = s.substring(0, lastDot).replace(/,/g, '.');
+                    }
+                }
             } else if (lastComma > -1) {
                 if (s.length - lastComma - 1 === 3) s = s.replace(/,/g, '');
                 else s = s.replace(/,/g, '.');
@@ -572,25 +640,339 @@ if (!window.priceTrackerPickerInjected) {
         });
 
         const activeCandidates = pool.filter(c => c.isActive && !c.isOld && !c.isReference);
+        let finalVal = null;
+        let finalCurr = defaultCurr;
+
         if (activeCandidates.length > 0) {
             const values = activeCandidates.map(c => c.value);
-            const minVal = Math.min(...values);
-            const match = activeCandidates.find(c => c.value === minVal);
-            return { value: minVal, currency: match.currency };
+            finalVal = Math.min(...values);
+            const match = activeCandidates.find(c => c.value === finalVal);
+            finalCurr = match.currency;
+        } else {
+            const regularCandidates = pool.filter(c => !c.isOld && !c.isReference);
+            if (regularCandidates.length > 0) {
+                const values = regularCandidates.map(c => c.value);
+                finalVal = Math.min(...values);
+                const match = regularCandidates.find(c => c.value === finalVal);
+                finalCurr = match.currency;
+            } else {
+                const fallbackVals = pool.map(c => c.value);
+                finalVal = Math.min(...fallbackVals);
+                const match = pool.find(c => c.value === finalVal);
+                finalCurr = match ? match.currency : defaultCurr;
+            }
         }
 
-        const regularCandidates = pool.filter(c => !c.isOld && !c.isReference);
-        if (regularCandidates.length > 0) {
-            const values = regularCandidates.map(c => c.value);
-            const minVal = Math.min(...values);
-            const match = regularCandidates.find(c => c.value === minVal);
-            return { value: minVal, currency: match.currency };
+        // Detect promotion / discount in the surrounding area
+        let originalPrice = null;
+        let discountPercent = null;
+        let isPromo = false;
+        let promoBadge = null;
+
+        const oldCandidates = pool.filter(c => c.isOld || c.isReference);
+        if (oldCandidates.length > 0) {
+            const oldVals = oldCandidates.map(c => c.value).filter(v => v > finalVal);
+            if (oldVals.length > 0) {
+                originalPrice = Math.max(...oldVals);
+                isPromo = true;
+                discountPercent = Math.round(((originalPrice - finalVal) / originalPrice) * 100);
+                promoBadge = `-${discountPercent}%`;
+            }
         }
 
-        const fallbackVals = pool.map(c => c.value);
-        const minVal = Math.min(...fallbackVals);
-        const match = pool.find(c => c.value === minVal);
-        return { value: minVal, currency: match ? match.currency : defaultCurr };
+        // Prioritize local container first to avoid related/upsell product contamination
+        const localBlock = (element.closest && element.closest([
+            '.pricing-block',
+            '.product-price-col',
+            '.price-box',
+            '.price-wrapper',
+            '.product-info-price',
+            '.c__price-block',
+            '.pdp-tools',
+            '.common-price',
+            '.price-buy',
+            '.product-details',
+            'div[class*="price"]'
+        ].join(','))) || element.parentElement || element;
+
+        const wideBlock = (element.closest && element.closest([
+            '.product-page-pricing',
+            '.product-highlight',
+            '.highlight-box',
+            '.main-product-form',
+            '.product-info-main',
+            '.product-purchase-panel',
+            '.product-block--price',
+            '#corePriceDisplay_desktop_feature_div',
+            '#corePrice_feature_div',
+            '#apex_desktop',
+            'form[id*="cart"]'
+        ].join(',')));
+
+        const searchContainers = [localBlock];
+        if (wideBlock && wideBlock !== localBlock) {
+            searchContainers.push(wideBlock);
+        }
+
+        // Check old price selectors in containers
+        if (!originalPrice) {
+            const oldSelectors = [
+                'p.product-old-price',
+                '.product-page-pricing .product-old-price',
+                '.pricing-block .product-old-price',
+                'p.pricing.rrp-lp30d',
+                'p.rrp-lp30d',
+                '.rrp-lp30d-content',
+                '[class*="rrp-lp30d"]',
+                '.card-v2-discounts',
+                'p.old-price',
+                '.price-old',
+                '.price-standard',
+                '.crossed-price',
+                'del',
+                's',
+                'strike',
+                '[class*="old-price"]',
+                '[data-price-type="oldPrice"]'
+            ].join(',');
+
+            for (const container of searchContainers) {
+                if (originalPrice) break;
+                const oldEls = container.querySelectorAll(oldSelectors);
+                for (const oldEl of oldEls) {
+                    if (oldEl.closest && oldEl.closest('.upsell, .related, .crosssell, [class*="upsell"], [class*="slider"], [class*="carousel"], [class*="recommended"]')) {
+                        continue;
+                    }
+                    const subPrice = oldEl.querySelector('.price, span.price, del, s, strike');
+                    const targetEl = subPrice || oldEl;
+
+                    let oldText = '';
+                    try {
+                        const clone = targetEl.cloneNode(true);
+                        const tooltips = clone.querySelectorAll('.product-tooltip, .product-page-tooltip, .tooltip, [role="tooltip"], .price-label');
+                        tooltips.forEach(t => t.remove());
+                        oldText = (clone.innerText || clone.textContent || '').replace(/\u00a0/g, ' ').trim();
+                    } catch (e) {
+                        oldText = (targetEl.innerText || targetEl.textContent || '').replace(/\u00a0/g, ' ').trim();
+                    }
+
+                    let parsedOld = parseNum(oldText);
+                    if (parsedOld) {
+                        if (parsedOld >= finalVal * 30 && Math.abs((parsedOld / 100) - finalVal) < finalVal * 2) {
+                            parsedOld = +(parsedOld / 100).toFixed(2);
+                        }
+                        if (parsedOld > finalVal && parsedOld <= finalVal * 10 && (!originalPrice || parsedOld > originalPrice)) {
+                            originalPrice = parsedOld;
+                            isPromo = true;
+                            discountPercent = Math.round(((originalPrice - finalVal) / originalPrice) * 100);
+                            promoBadge = `-${discountPercent}%`;
+                        }
+                    }
+                }
+            }
+        }
+
+            // Check for in-page voucher cards or data-voucher
+            let voucherDiscountPercent = null;
+            let voucherDiscountAmount = null;
+            let voucherPromoBadge = null;
+
+            // 4a. Check direct voucher passed from eMAG SAPI call if pre-fetched
+            if (window._emagVoucherData) {
+                if (window._emagVoucherData.discount_type === 1 && typeof window._emagVoucherData.discount_value === 'number') {
+                    voucherDiscountPercent = window._emagVoucherData.discount_value;
+                } else if (window._emagVoucherData.discount_type === 2 && typeof window._emagVoucherData.discount_value === 'number') {
+                    voucherDiscountAmount = window._emagVoucherData.discount_value;
+                }
+                if (window._emagVoucherData.name) {
+                    voucherPromoBadge = window._emagVoucherData.name;
+                    if (window._emagVoucherData.voucher_code) {
+                        voucherPromoBadge += ` (${window._emagVoucherData.voucher_code})`;
+                    }
+                }
+            }
+
+            // 4b. Search in-page voucher elements in wideBlock or document scope
+            if (!voucherDiscountPercent && !voucherDiscountAmount) {
+                const voucherEl = (wideBlock && wideBlock.querySelector('.js-in-page-voucher, [data-voucher], .vcr-voucher-card, .vcr-voucher-placeholder, .personalization-teaser')) ||
+                                  document.querySelector('.js-in-page-voucher, [data-voucher], .vcr-voucher-card, .vcr-voucher-placeholder, .personalization-teaser');
+                if (voucherEl) {
+                    try {
+                        const rawVoucher = voucherEl.getAttribute('data-voucher');
+                        if (rawVoucher) {
+                            const vData = JSON.parse(rawVoucher);
+                            if (vData) {
+                                if (vData.discount_type === 1 && typeof vData.discount_value === 'number') {
+                                    voucherDiscountPercent = vData.discount_value;
+                                } else if (vData.discount_type === 2 && typeof vData.discount_value === 'number') {
+                                    voucherDiscountAmount = vData.discount_value;
+                                }
+                                if (vData.name) {
+                                    voucherPromoBadge = vData.name;
+                                    if (vData.voucher_code) {
+                                        voucherPromoBadge += ` (${vData.voucher_code})`;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {}
+
+                    if (!voucherDiscountPercent && !voucherPromoBadge) {
+                        const vText = (voucherEl.innerText || voucherEl.textContent || '').replace(/\u00a0/g, ' ').trim();
+                        const pctMatch = vText.match(/[-–]?\s*(\d{1,2}(?:[.,]\d)?)\s*%/);
+                        if (pctMatch) {
+                            voucherDiscountPercent = Math.round(parseFloat(pctMatch[1].replace(',', '.')));
+                        }
+                        const nameMatch = vText.match(/[-–]?\s*\d{1,2}%\s*отстъпка\s*с\s*ваучер|ваучер\s*[-–]?\s*\d{1,2}%|[-–]?\s*\d{1,2}%\s*с\s*код\s*[\w\d]+/i);
+                        if (nameMatch) {
+                            voucherPromoBadge = nameMatch[0];
+                        }
+                    }
+                }
+            }
+
+            // 4c. Search full pricing container or main content for visible voucher text
+            if (!voucherDiscountPercent && !voucherDiscountAmount) {
+                const searchScope = (element.closest && element.closest('.product-page-pricing, .product-highlight, .main-product-form, main')) || document.body;
+                if (searchScope) {
+                    const scopeText = (searchScope.innerText || searchScope.textContent || '').replace(/\u00a0/g, ' ');
+                    const vTextMatch = scopeText.match(/[-–]?\s*(\d{1,2})%\s*отстъпка\s*с\s*ваучер/i) ||
+                                       scopeText.match(/ваучер\s*[-–]?\s*(\d{1,2})%/i);
+                    if (vTextMatch) {
+                        voucherDiscountPercent = parseInt(vTextMatch[1], 10);
+                        voucherPromoBadge = vTextMatch[0];
+                    }
+                }
+            }
+
+            // Check badges and vouchers in wide container
+            const badgeEls = wideBlock.querySelectorAll([
+                '.product-discount',
+                '.badge-genius',
+                '.voucher-details',
+                '.vcr-voucher-card',
+                '.vcr-voucher-placeholder',
+                '.vcr-badge',
+                '[class*="vcr-badge"]',
+                '.personalization-teaser',
+                '[data-source="voucher_badge"]',
+                '.card-v2-discounts',
+                '[class*="discount"]',
+                '[class*="savings"]',
+                '[class*="promo"]',
+                '[class*="badge"]',
+                '[class*="voucher"]'
+            ].join(','));
+
+            for (const b of badgeEls) {
+                const bText = (b.innerText || b.textContent || '').replace(/\u00a0/g, ' ').trim();
+                if (!bText) continue;
+                const pctMatch = bText.match(/[-–]?\s*(\d{1,2}(?:[.,]\d)?)\s*%/);
+                if (pctMatch) {
+                    const pct = parseFloat(pctMatch[1].replace(',', '.'));
+                    if (pct > 0 && pct < 100 && (!discountPercent || pct > discountPercent)) {
+                        discountPercent = Math.round(pct);
+                        isPromo = true;
+                        if (!promoBadge) promoBadge = `-${discountPercent}%`;
+                    }
+                }
+                const vMatch = bText.match(/[-–]?\s*\d{1,2}%\s*отстъпка\s*с\s*ваучер|ваучер\s*[-–]?\s*\d{1,2}%|[-–]?\s*\d{1,2}%\s*с\s*код\s*[\w\d]+/i);
+                if (vMatch) {
+                    voucherPromoBadge = vMatch[0];
+                    if (!voucherDiscountPercent && pctMatch) {
+                        voucherDiscountPercent = Math.round(parseFloat(pctMatch[1].replace(',', '.')));
+                    }
+                } else if (/voucher|ваучер|coupon|купон|genius|код\s*за\s*отстъпка/i.test(bText)) {
+                    const cleanBadge = bText.replace(/\s+/g, ' ').trim();
+                    if (cleanBadge.length <= 40 && !promoBadge) {
+                        promoBadge = cleanBadge;
+                        isPromo = true;
+                    }
+                }
+            }
+
+            // Apply voucher discount calculation if voucher was found
+            if (voucherDiscountPercent && voucherDiscountPercent > 0) {
+                isPromo = true;
+                discountPercent = voucherDiscountPercent;
+                promoBadge = voucherPromoBadge || `-${discountPercent}% с ваучер`;
+                if (!originalPrice) {
+                    originalPrice = finalVal;
+                    const savings = +(finalVal * (discountPercent / 100)).toFixed(2);
+                    finalVal = +(finalVal - savings).toFixed(2);
+                }
+            } else if (voucherDiscountAmount && voucherDiscountAmount > 0) {
+                isPromo = true;
+                promoBadge = voucherPromoBadge || `-${voucherDiscountAmount} с ваучер`;
+                if (!originalPrice) {
+                    originalPrice = finalVal;
+                    finalVal = +(finalVal - voucherDiscountAmount).toFixed(2);
+                    discountPercent = Math.round((voucherDiscountAmount / originalPrice) * 100);
+                }
+            }
+        }
+
+        // Fallback: eMAG script data if on eMAG
+        if (!originalPrice || !discountPercent) {
+            if (window.location.hostname.includes('emag.')) {
+                try {
+                    const scripts = document.querySelectorAll('script:not([src])');
+                    for (const s of scripts) {
+                        const content = s.textContent || '';
+                        if (!content.includes('EM.offer')) continue;
+
+                        const emOfferMatch = content.match(/EM\.offer\s*=\s*(\{[\s\S]*?\n\s*\};)/);
+                        const targetContent = emOfferMatch ? emOfferMatch[1] : content;
+
+                        // Discard restricted internal margin differences that are hidden from customers
+                        const isRestricted = targetContent.includes('"is_restricted_from_view":true') || 
+                                             targetContent.includes('"is_restricted_from_view": true') ||
+                                             targetContent.includes('"is_visible":false') ||
+                                             targetContent.includes('"is_visible": false') ||
+                                             targetContent.includes('"labeled_as_discount":false') ||
+                                             targetContent.includes('"labeled_as_discount": false');
+
+                        const curMatch = targetContent.match(/"current"\s*:\s*(\d+(?:\.\d+)?)/);
+                        const rrpMatch = targetContent.match(/"recommended_retail_price"\s*:\s*\{[^}]*"amount"\s*:\s*(\d+(?:\.\d+)?)/);
+                        const lowest30Match = targetContent.match(/"lowest_price_30_days"\s*:\s*\{[^}]*"amount"\s*:\s*(\d+(?:\.\d+)?)/);
+
+                        const cur = curMatch ? parseFloat(curMatch[1]) : finalVal;
+                        const rrp = (rrpMatch && parseFloat(rrpMatch[1]) > 0) ? parseFloat(rrpMatch[1]) : null;
+                        const lowest30 = (lowest30Match && parseFloat(lowest30Match[1]) > 0) ? parseFloat(lowest30Match[1]) : null;
+
+                        let orig = rrp || lowest30;
+                        if (!isRestricted) {
+                            const absMatch = targetContent.match(/"absolute"\s*:\s*(\d+(?:\.\d+)?)/);
+                            const abs = absMatch ? parseFloat(absMatch[1]) : null;
+                            if (!orig && abs && cur) orig = +(cur + abs).toFixed(2);
+                        }
+
+                        if (cur && (orig && orig > cur)) {
+                            if (!originalPrice || orig > originalPrice) {
+                                originalPrice = orig;
+                            }
+                            if (!discountPercent) {
+                                discountPercent = Math.round(((orig - cur) / orig) * 100);
+                            }
+                            isPromo = true;
+                            if (!promoBadge && discountPercent) {
+                                promoBadge = `-${discountPercent}%`;
+                            }
+                            break;
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
+
+        return { 
+            value: finalVal, 
+            currency: finalCurr,
+            originalPrice: originalPrice,
+            discountPercent: discountPercent,
+            isPromo: isPromo,
+            promoBadge: promoBadge
+        };
     }
 
     function formatNode(node, isActive) {
@@ -611,7 +993,14 @@ if (!window.priceTrackerPickerInjected) {
             selectorInfo = `<div style="font-size:11px; color:#ffc107; margin-top:4px; font-weight:bold; letter-spacing:0.5px;">${t("selector")} ${getCssSelector(node)}</div>`;
             const detected = detectPriceInElement(node);
             if (detected && detected.value !== null) {
-                priceInfo = `<div style="font-size:12px; color:#28a745; margin-top:4px; font-weight:bold; letter-spacing:0.3px;">${t("detectedPrice")} ${detected.value} ${detected.currency}</div>`;
+                let promoHtml = '';
+                if (detected.isPromo) {
+                    promoHtml = ` <span style="background:#ffc107; color:#212529; font-size:11px; padding:1px 5px; border-radius:3px; margin-left:6px; font-weight:bold;">🔥 Promo ${detected.promoBadge || ('-' + detected.discountPercent + '%')}</span>`;
+                    if (detected.originalPrice && detected.originalPrice > detected.value) {
+                        promoHtml += ` <span style="text-decoration:line-through; color:#888; font-size:11px; margin-left:4px;">${detected.originalPrice} ${detected.currency}</span>`;
+                    }
+                }
+                priceInfo = `<div style="font-size:12px; color:#28a745; margin-top:4px; font-weight:bold; letter-spacing:0.3px;">${t("detectedPrice")} ${detected.value} ${detected.currency}${promoHtml}</div>`;
             }
         }
 

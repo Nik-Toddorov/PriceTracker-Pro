@@ -425,7 +425,7 @@ function scheduleNextCheck(item) {
 }
 
 // 5. PROCESS SCRAPE RESULT (Comparison and persistence)
-async function processScrapeResult(itemConfig, currentValue, timestamp, currency) {
+async function processScrapeResult(itemConfig, currentValue, timestamp, currency, extraData = {}) {
   const db = await chrome.storage.local.get(['trackingData', 'settings']);
   const trackingData = db.trackingData || {};
   const settings = db.settings || { notificationsEnabled: true, notificationSound: true };
@@ -435,8 +435,18 @@ async function processScrapeResult(itemConfig, currentValue, timestamp, currency
 
   if (!categoryKey || !itemToUpdate) return;
 
+  // Auto-heal brittle or broken selector if a cleaner, working selector was found
+  if (extraData.autoHealedSelector && extraData.autoHealedSelector !== itemToUpdate.selector) {
+    console.log(`[PriceTracker] Auto-healing selector for ${itemToUpdate.id}: "${itemToUpdate.selector}" -> "${extraData.autoHealedSelector}"`);
+    itemToUpdate.selector = extraData.autoHealedSelector;
+  }
+
   const history = itemToUpdate.history || [];
   
+  // Track previous promotion state
+  const prevIsPromo = !!itemToUpdate.isPromo;
+  const prevDiscount = itemToUpdate.discountPercent || 0;
+
   // Determine if price dropped or text changed
   let isNewLowest = false;
   let parsedValue = null;
@@ -455,6 +465,35 @@ async function processScrapeResult(itemConfig, currentValue, timestamp, currency
     if (parsedValue < lowestRecorded) {
       isNewLowest = true;
     }
+
+    // Update promotion & discount attributes with decimal-drop recovery and outlier safeguard
+    let orig = extraData.originalPrice || null;
+    let discPct = extraData.discountPercent || null;
+    let discAmt = extraData.discountAmount || null;
+    let isPromo = !!extraData.isPromo;
+    let promoBadge = extraData.promoBadge || null;
+
+    if (orig && parsedValue > 0) {
+      if (orig >= parsedValue * 30 && Math.abs((orig / 100) - parsedValue) < parsedValue * 2) {
+        orig = +(orig / 100).toFixed(2);
+        discAmt = +(orig - parsedValue).toFixed(2);
+        discPct = Math.round(((orig - parsedValue) / orig) * 100);
+        isPromo = discPct > 0;
+        if (!promoBadge && isPromo) promoBadge = `-${discPct}%`;
+      } else if (orig > parsedValue * 10) {
+        orig = null;
+        discPct = null;
+        discAmt = null;
+        isPromo = false;
+        promoBadge = null;
+      }
+    }
+
+    itemToUpdate.originalPrice = orig;
+    itemToUpdate.discountPercent = discPct;
+    itemToUpdate.discountAmount = discAmt;
+    itemToUpdate.isPromo = isPromo;
+    itemToUpdate.promoBadge = promoBadge;
   } else if (itemToUpdate.type === "text") {
       parsedValue = typeof currentValue === 'string' ? currentValue.trim() : String(currentValue || '').trim();
       const lastRecorded = history.length > 0 ? history[history.length - 1].value : null;
@@ -468,6 +507,14 @@ async function processScrapeResult(itemConfig, currentValue, timestamp, currency
           itemToUpdate.hasUnreadTextChange = false;
           itemToUpdate.previousText = null;
       }
+  }
+
+  // Check if a new promotion started or discount increased
+  let isNewPromoAlert = false;
+  if (itemToUpdate.type === "price" && itemToUpdate.isPromo) {
+    if (!prevIsPromo || (itemToUpdate.discountPercent && itemToUpdate.discountPercent > prevDiscount)) {
+      isNewPromoAlert = true;
+    }
   }
 
   // Get last recorded history value
@@ -484,10 +531,17 @@ async function processScrapeResult(itemConfig, currentValue, timestamp, currency
   // Push new value to history only if different from previous value
   let hasValueChanged = false;
   if (lastHistoryRecord === null || lastHistoryRecord !== parsedValue) {
-      history.push({
+      const historyEntry = {
         date: checkTime,
         value: parsedValue
-      });
+      };
+      if (itemToUpdate.type === "price" && itemToUpdate.isPromo) {
+        historyEntry.isPromo = true;
+        if (itemToUpdate.originalPrice) historyEntry.originalPrice = itemToUpdate.originalPrice;
+        if (itemToUpdate.discountPercent) historyEntry.discountPercent = itemToUpdate.discountPercent;
+      }
+
+      history.push(historyEntry);
       
       // Cap history length to 100 entries
       if (history.length > 100) history.shift();
@@ -501,9 +555,10 @@ async function processScrapeResult(itemConfig, currentValue, timestamp, currency
   // Save back to storage
   await chrome.storage.local.set({ trackingData });
 
-  // Record into persistent chronological change history log if value changed
-  if (hasValueChanged) {
-      await recordChangeLogEntry({
+  // Record into persistent chronological change history log if value changed or new promo detected
+  let recordedEventId = null;
+  if (hasValueChanged || isNewPromoAlert) {
+      recordedEventId = await recordChangeLogEntry({
           itemId: itemToUpdate.id,
           catKey: categoryKey,
           categoryName: trackingData[categoryKey]?.categoryName || categoryKey,
@@ -514,13 +569,36 @@ async function processScrapeResult(itemConfig, currentValue, timestamp, currency
           oldValue: lastHistoryRecord,
           newValue: parsedValue,
           timestamp: checkTime,
-          isLowest: isNewLowest
+          isLowest: isNewLowest,
+          isPromo: itemToUpdate.isPromo,
+          originalPrice: itemToUpdate.originalPrice,
+          discountPercent: itemToUpdate.discountPercent,
+          promoBadge: itemToUpdate.promoBadge
       });
   }
 
   // Trigger desktop notification and sound if criteria met
-  if (isNewLowest && settings.notificationsEnabled) {
-    showNotification(itemToUpdate, currentValue);
+  if ((isNewLowest || isNewPromoAlert) && settings.notificationsEnabled) {
+    if (!recordedEventId) {
+        recordedEventId = await recordChangeLogEntry({
+            itemId: itemToUpdate.id,
+            catKey: categoryKey,
+            categoryName: trackingData[categoryKey]?.categoryName || categoryKey,
+            url: itemToUpdate.url,
+            selector: itemToUpdate.selector,
+            type: itemToUpdate.type,
+            currency: itemToUpdate.currency || '€',
+            oldValue: lastHistoryRecord,
+            newValue: parsedValue,
+            timestamp: checkTime,
+            isLowest: isNewLowest,
+            isPromo: itemToUpdate.isPromo,
+            originalPrice: itemToUpdate.originalPrice,
+            discountPercent: itemToUpdate.discountPercent,
+            promoBadge: itemToUpdate.promoBadge
+        });
+    }
+    showNotification(itemToUpdate, currentValue, isNewPromoAlert, recordedEventId);
     if (settings.notificationSound) {
         playSound();
     }
@@ -545,7 +623,9 @@ async function recordChangeLogEntry(changeInfo) {
       if (!isNaN(oldNum) && !isNaN(newNum)) {
         diff = Math.round((newNum - oldNum) * 100) / 100;
         percent = oldNum !== 0 ? Math.round(((newNum - oldNum) / oldNum) * 1000) / 10 : 0;
-        changeType = newNum < oldNum ? 'drop' : 'increase';
+        changeType = changeInfo.isPromo ? 'promo_drop' : (newNum < oldNum ? 'drop' : 'increase');
+      } else if (changeInfo.isPromo) {
+        changeType = 'promo_drop';
       }
     }
 
@@ -564,7 +644,11 @@ async function recordChangeLogEntry(changeInfo) {
       difference: diff,
       percentChange: percent,
       changeType: changeType,
-      isLowest: !!changeInfo.isLowest
+      isLowest: !!changeInfo.isLowest,
+      isPromo: !!changeInfo.isPromo,
+      originalPrice: changeInfo.originalPrice || null,
+      discountPercent: changeInfo.discountPercent || null,
+      promoBadge: changeInfo.promoBadge || null
     };
 
     log.unshift(newEntry);
@@ -575,8 +659,10 @@ async function recordChangeLogEntry(changeInfo) {
     }
 
     await chrome.storage.local.set({ changeHistoryLog: log });
+    return entryId;
   } catch (err) {
     console.warn("Failed to record change log entry:", err);
+    return null;
   }
 }
 
@@ -599,32 +685,74 @@ async function processScrapeError(itemConfig, errorMessage) {
 }
 
 // 7. VISUAL NOTIFICATION HELPER
-async function showNotification(item, newValue) {
+async function showNotification(item, newValue, isPromoAlert = false, eventId = null) {
   await initLang();
   const currency = item.currency || '€';
-  const messageText = item.type === "price" 
+  let title = item.type === "price" ? t("notif_price_drop_title") : t("notif_site_update_title");
+  let messageText = item.type === "price" 
     ? `${t("notif_new_lowest")}${newValue} ${currency}` 
     : t("notif_text_changed");
 
-  chrome.notifications.create({
+  if (isPromoAlert) {
+    title = t("notif_promo_detected");
+    const promoStr = item.promoBadge ? `${item.promoBadge} ` : (item.discountPercent ? `-${item.discountPercent}% ` : '');
+    const oldStr = (item.originalPrice && item.originalPrice > newValue) ? ` (${t("was_label")}: ${item.originalPrice} ${currency})` : '';
+    messageText = `${promoStr}${newValue} ${currency}${oldStr}`;
+  }
+
+  const notificationId = `pt_notif::${item.id || ''}::${eventId || ''}::${Date.now()}`;
+
+  chrome.notifications.create(notificationId, {
     type: 'basic',
     iconUrl: 'icons/icon128.png', 
-    title: item.type === "price" ? t("notif_price_drop_title") : t("notif_site_update_title"),
+    title: title,
     message: `${messageText}\n${t("notif_check_site")}${item.url}`,
     priority: 2,
     requireInteraction: true 
   });
 }
 
-// Click on desktop notification opens options page directly to change history tab
-chrome.notifications.onClicked.addListener(async () => {
+// Handler for notification clicks (opens options page directly to change history and scrolls to target event)
+async function handleNotificationClick(notificationId) {
   try {
-    await chrome.storage.local.set({ openTargetTab: 'tab-history-log' });
+    let targetItemId = null;
+    let targetEventId = null;
+
+    if (notificationId && typeof notificationId === 'string' && notificationId.startsWith('pt_notif::')) {
+      const parts = notificationId.split('::');
+      targetItemId = parts[1] || null;
+      targetEventId = parts[2] || null;
+    }
+
+    const payload = {
+      openTargetTab: 'tab-history-log',
+      targetHighlightEventId: targetEventId,
+      targetHighlightItemId: targetItemId,
+      targetHighlightTimestamp: Date.now()
+    };
+
+    await chrome.storage.local.set(payload);
+
+    // Notify any already open options tabs
+    try {
+      chrome.runtime.sendMessage({
+        action: 'open_history_and_scroll_to_event',
+        targetTab: 'tab-history-log',
+        eventId: targetEventId,
+        itemId: targetItemId
+      });
+    } catch (_) { }
+
     chrome.runtime.openOptionsPage();
   } catch (e) {
     console.warn("Error opening options on notification click:", e);
   }
-});
+}
+
+chrome.notifications.onClicked.addListener(handleNotificationClick);
+if (chrome.notifications.onButtonClicked) {
+  chrome.notifications.onButtonClicked.addListener(handleNotificationClick);
+}
 
 // 8. AUDIO PLAYBACK (Offscreen Document for Manifest V3)
 async function playSound() {
@@ -809,7 +937,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             stopScrapeKeepAlive();
 
             try {
-                await processScrapeResult(message.itemConfig, message.value, message.timestamp, message.currency);
+                await processScrapeResult(message.itemConfig, message.value, message.timestamp, message.currency, message);
             } catch (err) {
                 console.error("Error processing scrape result:", err);
             }
@@ -929,6 +1057,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
         })();
         return true;
+    } else if (message.action === "optimize_selectors") {
+        (async () => {
+            const db = await chrome.storage.local.get(['trackingData']);
+            const trackingData = db.trackingData || {};
+            const result = optimizeTrackingSelectors(trackingData);
+            if (result.count > 0) {
+                await chrome.storage.local.set({ trackingData });
+            }
+            sendResponse({ status: "ok", count: result.count, items: result.itemsUpdated });
+        })();
+        return true;
     }
 });
 
@@ -980,6 +1119,13 @@ async function checkOverdueItems() {
     try {
         const data = await chrome.storage.local.get('trackingData');
         const trackingData = data.trackingData || {};
+        
+        // Auto-heal any corrupted 100x promotions in database on startup
+        if (sanitizeDatabasePromotions(trackingData)) {
+            await chrome.storage.local.set({ trackingData });
+            console.log('[Startup] Auto-healed corrupted promotion prices in trackingData.');
+        }
+
         const now = Date.now();
         const overdueItemIds = [];
 
@@ -1020,4 +1166,118 @@ async function checkOverdueItems() {
     } finally {
         isCheckingOverdue = false;
     }
+}
+
+// 16. RESILIENT SELECTOR OPTIMIZER (Upgrades brittle nth-of-type & dynamic IDs to bulletproof smart selectors)
+const DOMAIN_OPTIMIZATIONS = [
+  { match: (h) => h.includes('emag.'), cleanSelector: 'p.product-new-price' },
+  { match: (h) => h.includes('amazon.'), cleanSelector: '.a-price .a-offscreen' },
+  { match: (h) => h.includes('ozone.bg'), cleanSelector: '.price-box .price, p.special-price .price' },
+  { match: (h) => h.includes('babymatters.bg'), cleanSelector: '.product-price-col' },
+  { match: (h) => h.includes('baby.bg'), cleanSelector: '.price-box .special-price .price, .price-box .price' },
+  { match: (h) => h.includes('ardes.bg'), cleanSelector: '.common-price .price, .price-total' },
+  { match: (h) => h.includes('plasico.bg'), cleanSelector: '.price-buy' },
+  { match: (h) => h.includes('jarcomputers.com'), cleanSelector: 'div.row-price' },
+  { match: (h) => h.includes('tefal.') || h.includes('rowenta.'), cleanSelector: 'div.c__price-block > sd-price, sd-price' },
+  { match: (h) => h.includes('praktiker.bg'), cleanSelector: '.pdp-tools__start, .pdp-price' },
+  { match: (h) => h.includes('praktis.bg'), cleanSelector: '[data-price-type="finalPrice"], .special-price .price' },
+  { match: (h) => h.includes('rayatoys.com'), cleanSelector: '.product-info-price span.price, span.price' },
+  { match: (h) => h.includes('baniastil.com'), cleanSelector: '.product-details .product-price' },
+  { match: (h) => h.includes('pax.bg'), cleanSelector: '.product__content__list' },
+  { match: (h) => h.includes('elaria.bg'), cleanSelector: '.product-block.product-block--price' }
+];
+
+function optimizeTrackingSelectors(trackingData) {
+  let count = 0;
+  const itemsUpdated = [];
+
+  for (const catKey in trackingData) {
+    const cat = trackingData[catKey];
+    if (!cat || !Array.isArray(cat.items)) continue;
+
+    for (const item of cat.items) {
+      if (item.type !== 'price') continue;
+      let host = '';
+      try { host = new URL(item.url).hostname.toLowerCase(); } catch (e) { continue; }
+
+      const sel = item.selector || '';
+      const isBrittle = sel.includes(':nth-of-type') || 
+                        sel.includes('#product-options') || 
+                        sel === 'div > div.a-section > div.a-section' ||
+                        sel.split('>').length > 4;
+
+      if (isBrittle) {
+        const opt = DOMAIN_OPTIMIZATIONS.find(o => o.match(host));
+        if (opt && opt.cleanSelector && opt.cleanSelector !== item.selector) {
+          const oldSelector = item.selector;
+          item.selector = opt.cleanSelector;
+          count++;
+          itemsUpdated.push({
+            id: item.id,
+            url: item.url,
+            oldSelector,
+            newSelector: opt.cleanSelector
+          });
+        }
+      }
+    }
+  }
+
+  return { count, itemsUpdated };
+}
+
+// 17. AUTOMATIC PROMOTION SANITIZER (Corrects dropped decimals and cleans 100x price outliers)
+function sanitizeDatabasePromotions(trackingData) {
+  let modified = false;
+  if (!trackingData) return false;
+
+  for (const catKey in trackingData) {
+    const cat = trackingData[catKey];
+    if (!cat || !Array.isArray(cat.items)) continue;
+
+    for (const item of cat.items) {
+      if (item.type !== 'price') continue;
+      const history = item.history || [];
+      const currVal = history.length > 0 ? parseFloat(history[history.length - 1].value) : null;
+      if (!currVal || isNaN(currVal) || currVal <= 0) continue;
+
+      if (item.originalPrice && item.originalPrice > currVal * 10) {
+        const candidate = +(item.originalPrice / 100).toFixed(2);
+        if (candidate > currVal && candidate < currVal * 2.5) {
+          item.originalPrice = candidate;
+          item.discountAmount = +(candidate - currVal).toFixed(2);
+          item.discountPercent = Math.round(((candidate - currVal) / candidate) * 100);
+          item.promoBadge = `-${item.discountPercent}%`;
+          item.isPromo = true;
+        } else {
+          item.originalPrice = null;
+          item.discountAmount = null;
+          item.discountPercent = null;
+          item.isPromo = false;
+          item.promoBadge = null;
+        }
+        modified = true;
+      }
+
+      if (Array.isArray(item.history)) {
+        for (const h of item.history) {
+          if (h.originalPrice && h.originalPrice > (h.value || currVal) * 10) {
+            const hVal = parseFloat(h.value) || currVal;
+            const cand = +(h.originalPrice / 100).toFixed(2);
+            if (cand > hVal && cand < hVal * 2.5) {
+              h.originalPrice = cand;
+              h.discountPercent = Math.round(((cand - hVal) / cand) * 100);
+            } else {
+              delete h.originalPrice;
+              delete h.discountPercent;
+              delete h.isPromo;
+            }
+            modified = true;
+          }
+        }
+      }
+    }
+  }
+
+  return modified;
 }

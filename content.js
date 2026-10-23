@@ -683,8 +683,8 @@ const DOMAIN_PRICE_RULES = [
             '.price-box .special-price .price',
             '.price-box .regular-price .price',
             '.product-info-price .special-price .price',
-            '.product-info-price .price',
-            '.price-box .price',
+            '.product-info-price .regular-price .price',
+            '.price-box :not(.old-price) > .price',
             '.product-options'
         ],
         oldPriceSelectors: [
@@ -697,7 +697,7 @@ const DOMAIN_PRICE_RULES = [
             '.sale-label',
             '.product-badge'
         ],
-        cleanSelector: '.price-box .special-price .price, .price-box .price'
+        cleanSelector: '.price-box .special-price .price, .price-box .regular-price .price'
     },
     {
         // Ardes.bg
@@ -1488,10 +1488,40 @@ function extractPriceAndPromo(element, config = {}, directVoucher = null) {
 function findTargetElement(selector, itemType = 'price') {
     if (!selector) return null;
 
-    // 1. Direct query selector
+    // 1. If selector is a comma-separated list, prioritize candidates in listed order,
+    // and for price tracking, ensure we prefer active prices over strikethrough/old prices.
+    if (selector.includes(',')) {
+        const parts = selector.split(',').map(s => s.trim()).filter(Boolean);
+        let fallbackOldPriceEl = null;
+        for (const part of parts) {
+            try {
+                const candidates = document.querySelectorAll(part);
+                for (const candidate of candidates) {
+                    if (itemType === 'price' && isOldPriceEl(candidate)) {
+                        if (!fallbackOldPriceEl) fallbackOldPriceEl = candidate;
+                        continue;
+                    }
+                    return candidate;
+                }
+            } catch (e) {}
+        }
+        if (fallbackOldPriceEl) return fallbackOldPriceEl;
+    }
+
+    // 1b. Direct query selector
     try {
         const el = document.querySelector(selector);
-        if (el) return el;
+        if (el) {
+            if (itemType === 'price' && isOldPriceEl(el)) {
+                // If direct match is an old price, check if a non-old sibling/descendant is available
+                const parentBox = el.closest('.price-box, .product-price-col, .product-info-price, .pricing-block');
+                if (parentBox) {
+                    const activeEl = parentBox.querySelector('.special-price .price, .product-new-price, .regular-price .price, [class*="special-price"] .price');
+                    if (activeEl) return activeEl;
+                }
+            }
+            return el;
+        }
     } catch (e) {}
 
     // 2. Relaxed child combinator (> replaced by descendant space)

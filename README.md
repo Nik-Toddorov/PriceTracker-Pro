@@ -27,6 +27,20 @@ PriceTracker Pro is a powerful browser extension (for Google Chrome, Microsoft E
 
 ## 📝 Changelog
 
+- **Fix / Strikethrough Price Exclusion on Baby.bg & Elimination of 0 € Promo-Drop Log Entries**:
+  - **Exclusion of Strikethrough `.old-price` in Baby.bg Domain Rules**: Corrected the smart selector for `baby.bg` (Magento) from `.price-box .special-price .price, .price-box .price` to `.price-box .special-price .price, .price-box .regular-price .price`. Previously, because `.price-box .old-price` appears before `.special-price` in document tree order, `.price-box .price` matched the strikethrough recommended retail price (ПЦД: `164.90 €`) instead of the active selling price (`115.50 €`).
+  - **Sequential Selector Priority & Strikethrough Suppression in `findTargetElement`**: Enhanced `findTargetElement` in `content.js` to evaluate comma-separated selectors in listed priority order, while checking `isOldPriceEl(candidate)`. Ensures that strikethrough/old price elements are never erroneously returned when a valid active price exists.
+  - **Elimination of Fake 0 € Price Drops (`164.9 € -> 164.9 €`)**: Fixed `background.js` and `options.js` when a promotional alert (`isNewPromoAlert`) fires on an item where the numeric price did not change on that check:
+    - If `originalPrice` is higher than the current price, the log transition now accurately records the full promotional discount from `originalPrice` to `currentPrice`.
+    - If `oldValue === newValue` (difference is 0), `changeType` is assigned `'promo_alert'` rather than `'promo_drop'`. The change badge displays `🔥 Promo (-XX%)` without displaying a misleading `📉 -0 € (-0%)` drop pill, and the state comparison cleanly presents the current active price without crossing out the value.
+  - **Auto-Healing for Existing Baby.bg Selectors**: Updated `optimizeTrackingSelectors` and startup routines to automatically detect and upgrade legacy `.price-box .price` selectors to `.price-box .special-price .price, .price-box .regular-price .price`.
+
+- **Fix / Unhandled Promise Rejection on Desktop Notification Click (`Receiving end does not exist`)**:
+  - **Safe Message Dispatching (`safeRuntimeSendMessage`)**: Implemented a hardened message dispatch helper in [background.js](file:///d:/Nik%20Todorov/Desktop/PriceTracker/background.js) that attaches `.catch()` handlers and checks `chrome.runtime.lastError`. This eliminates unhandled promise rejections (`Error: Could not establish connection. Receiving end does not exist.`) occurring when desktop notifications are clicked while options pages are not yet open or listening.
+  - **Notification Dismissal on Click**: Automatically clears the active desktop notification via `chrome.notifications.clear(notificationId)` upon clicking to ensure clean dismissal from the Windows notification center.
+  - **Concurrent Audio Playback Guard**: Added an asynchronous document creation mutex (`isCreatingOffscreen`) in `playSound()` to prevent concurrent `chrome.offscreen.createDocument` conflicts when multiple price alerts fire simultaneously.
+  - **Global `chrome.runtime.sendMessage` Error Shielding**: Added callback error interceptors across all manual refresh and picker triggers in [options.js](file:///d:/Nik%20Todorov/Desktop/PriceTracker/options.js) and [popup.js](file:///d:/Nik%20Todorov/Desktop/PriceTracker/popup.js).
+
 - **Feature / Windows Desktop Notification Event Navigation & Auto-Scroll Highlight**:
   - **Notification-to-Event Linkage**: Assigned structured notification IDs (`pt_notif::{itemId}::{eventId}::{timestamp}`) linking every desktop alert to its specific entry in `changeHistoryLog`.
   - **Direct Desktop Notification Routing**: Clicking on any Windows notification directly opens the options page and activates the **Change History** tab (`tab-history-log`), seamlessly handling both newly opened tabs and already open/focused options pages via runtime messaging and storage sync.

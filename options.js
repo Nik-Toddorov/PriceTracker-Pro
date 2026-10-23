@@ -257,7 +257,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             sessionStorage.setItem('activePickerContext', JSON.stringify(activePickerContext));
             pickerBtn.innerText = t("loading");
             pickerBtn.disabled = true;
-            chrome.runtime.sendMessage({ action: "start_picker", url: url });
+            chrome.runtime.sendMessage({ action: "start_picker", url: url }, () => {
+                if (chrome.runtime.lastError) { /* ignore */ }
+            });
         });
     }
 
@@ -276,7 +278,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             sessionStorage.setItem('activePickerContext', JSON.stringify(activePickerContext));
             editPickerBtn.innerText = t("loading");
             editPickerBtn.disabled = true;
-            chrome.runtime.sendMessage({ action: "start_picker", url: url });
+            chrome.runtime.sendMessage({ action: "start_picker", url: url }, () => {
+                if (chrome.runtime.lastError) { /* ignore */ }
+            });
         });
     }
 
@@ -359,7 +363,9 @@ function handleListClicks(e) {
     } else if (target.classList.contains('btn-cat-delete')) {
         window.deleteCategory(target.dataset.catkey);
     } else if (target.classList.contains('btn-cat-refresh')) {
-        chrome.runtime.sendMessage({ action: "force_refresh_category", catKey: target.dataset.catkey });
+        chrome.runtime.sendMessage({ action: "force_refresh_category", catKey: target.dataset.catkey }, () => {
+            if (chrome.runtime.lastError) { /* ignore */ }
+        });
         target.innerText = t("check_progress");
         setTimeout(() => target.innerText = t("refresh_all_now"), 3000);
     } else if (target.classList.contains('btn-item-history') || target.closest('.btn-item-history')) {
@@ -382,7 +388,9 @@ function handleListClicks(e) {
     } else if (target.classList.contains('btn-item-delete')) {
         window.deleteItem(target.dataset.catkey, target.dataset.itemid);
     } else if (target.classList.contains('btn-item-refresh')) {
-        chrome.runtime.sendMessage({ action: "force_refresh_item", itemId: target.dataset.itemid });
+        chrome.runtime.sendMessage({ action: "force_refresh_item", itemId: target.dataset.itemid }, () => {
+            if (chrome.runtime.lastError) { /* ignore */ }
+        });
         target.innerText = t("check_progress");
         setTimeout(() => target.innerText = t("refresh_btn"), 3000);
     } else if (target.classList.contains('btn-mark-reviewed')) {
@@ -741,7 +749,9 @@ async function handleAddItem(e) {
     await chrome.storage.local.set({ trackingData: trackingData });
 
     // Trigger initial scrape immediately (which also schedules the next jitter alarm)
-    chrome.runtime.sendMessage({ action: "force_refresh_item", itemId: newItem.id });
+    chrome.runtime.sendMessage({ action: "force_refresh_item", itemId: newItem.id }, () => {
+        if (chrome.runtime.lastError) { /* ignore */ }
+    });
 
     // Notify and close options window
     alert(t("added_success"));
@@ -1865,7 +1875,9 @@ document.getElementById('saveEditItemBtn').addEventListener('click', async () =>
         await chrome.storage.local.set({ trackingData });
 
         // Trigger refresh with new parameters immediately
-        chrome.runtime.sendMessage({ action: "force_refresh_item", itemId: itemId });
+        chrome.runtime.sendMessage({ action: "force_refresh_item", itemId: itemId }, () => {
+            if (chrome.runtime.lastError) { /* ignore */ }
+        });
 
         document.getElementById('editItemModal').style.display = 'none';
         await renderTrackedItems();
@@ -2453,15 +2465,23 @@ async function renderChangeHistoryLog() {
             const diffAbs = ev.difference !== null ? Math.abs(ev.difference) : 0;
             const pctAbs = ev.percentChange !== null ? Math.abs(ev.percentChange) : 0;
             const curr = ev.currency || '€';
+            const isZeroDiff = diffAbs === 0 || ev.oldValue === ev.newValue;
 
-            if (ev.changeType === 'drop' || ev.changeType === 'promo_drop') {
+            if (ev.changeType === 'promo_alert' || (isZeroDiff && (ev.isPromo || ev.promoBadge))) {
+                const promoText = ev.promoBadge || (ev.discountPercent ? `-${ev.discountPercent}%` : t("promo_badge"));
+                changeBadgeHtml = `<span class="badge-promo">🔥 ${escapeHtml(promoText)}</span> <span class="badge-change-pill text">✨ ${t("badge_promo_active") || t("promo_badge")}</span>`;
+            } else if (ev.changeType === 'drop' || ev.changeType === 'promo_drop') {
                 changeBadgeHtml = `<span class="badge-change-pill drop">📉 -${diffAbs} ${escapeHtml(curr)} (-${pctAbs}%)</span>`;
+                if (ev.isPromo || ev.promoBadge) {
+                    const promoText = ev.promoBadge || (ev.discountPercent ? `-${ev.discountPercent}%` : t("promo_badge"));
+                    changeBadgeHtml += ` <span class="badge-promo">🔥 ${escapeHtml(promoText)}</span>`;
+                }
             } else {
                 changeBadgeHtml = `<span class="badge-change-pill increase">📈 +${diffAbs} ${escapeHtml(curr)} (+${pctAbs}%)</span>`;
-            }
-            if (ev.isPromo || ev.changeType === 'promo_drop' || ev.promoBadge) {
-                const promoText = ev.promoBadge || (ev.discountPercent ? `-${ev.discountPercent}%` : t("promo_badge"));
-                changeBadgeHtml += ` <span class="badge-promo">🔥 ${escapeHtml(promoText)}</span>`;
+                if (ev.isPromo || ev.promoBadge) {
+                    const promoText = ev.promoBadge || (ev.discountPercent ? `-${ev.discountPercent}%` : t("promo_badge"));
+                    changeBadgeHtml += ` <span class="badge-promo">🔥 ${escapeHtml(promoText)}</span>`;
+                }
             }
             if (ev.isLowest) {
                 changeBadgeHtml += ` <span class="badge-lowest-star">${t("badge_all_time_low")}</span>`;
@@ -2474,19 +2494,31 @@ async function renderChangeHistoryLog() {
         let comparisonHtml = '';
         if (ev.type === 'price') {
             const curr = ev.currency || '€';
-            comparisonHtml = `
-                <div class="log-state-grid">
-                    <div class="log-state-box">
-                        <div class="log-state-label">${t("prev_state_label")}</div>
-                        <div class="log-state-val old">${escapeHtml(ev.oldValue)} ${escapeHtml(curr)}</div>
+            if (ev.oldValue === ev.newValue || (ev.difference !== null && ev.difference === 0)) {
+                comparisonHtml = `
+                    <div class="log-state-grid single-state">
+                        <div class="log-state-box">
+                            <div class="log-state-label">${t("current_price") || "Current Price"}</div>
+                            <div class="log-state-val new promo">${escapeHtml(ev.newValue)} ${escapeHtml(curr)}</div>
+                        </div>
                     </div>
-                    <div class="log-arrow">➔</div>
-                    <div class="log-state-box">
-                        <div class="log-state-label">${t("new_state_label")}</div>
-                        <div class="log-state-val new ${ev.changeType}">${escapeHtml(ev.newValue)} ${escapeHtml(curr)}</div>
+                `;
+            } else {
+                comparisonHtml = `
+                    <div class="log-state-grid">
+                        <div class="log-state-box">
+                            <div class="log-state-label">${t("prev_state_label")}</div>
+                            <div class="log-state-val old">${escapeHtml(ev.oldValue)} ${escapeHtml(curr)}</div>
+                        </div>
+                        <div class="log-arrow">➔</div>
+                        <div class="log-state-box">
+                            <div class="log-state-label">${t("new_state_label")}</div>
+                            <div class="log-state-val new ${ev.changeType}">${escapeHtml(ev.newValue)} ${escapeHtml(curr)}</div>
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
+            }
+        }
         } else {
             // Text comparison with diff
             comparisonHtml = `

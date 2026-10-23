@@ -418,7 +418,9 @@ async function handleListClicks(e) {
     if (target.classList.contains('btn-cat-history')) {
         showCategoryHistory(target.dataset.catkey);
     } else if (target.classList.contains('btn-cat-refresh')) {
-        chrome.runtime.sendMessage({ action: "force_refresh_category", catKey: target.dataset.catkey });
+        chrome.runtime.sendMessage({ action: "force_refresh_category", catKey: target.dataset.catkey }, () => {
+            if (chrome.runtime.lastError) { /* ignore */ }
+        });
         target.innerText = "⏳";
         setTimeout(() => target.innerText = "🔄", 2000);
     } else if (target.classList.contains('btn-item-history') || target.closest('.btn-item-history')) {
@@ -437,7 +439,9 @@ async function handleListClicks(e) {
             }
         }
     } else if (target.classList.contains('btn-item-refresh')) {
-        chrome.runtime.sendMessage({ action: "force_refresh_item", itemId: target.dataset.itemid });
+        chrome.runtime.sendMessage({ action: "force_refresh_item", itemId: target.dataset.itemid }, () => {
+            if (chrome.runtime.lastError) { /* ignore */ }
+        });
         target.innerText = "⏳";
         setTimeout(() => target.innerText = "🔄", 2000);
     } else if (target.classList.contains('btn-mark-reviewed')) {

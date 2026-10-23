@@ -558,6 +558,10 @@ async function processScrapeResult(itemConfig, currentValue, timestamp, currency
   // Record into persistent chronological change history log if value changed or new promo detected
   let recordedEventId = null;
   if (hasValueChanged || isNewPromoAlert) {
+      let logOldValue = lastHistoryRecord;
+      if (!hasValueChanged && isNewPromoAlert && itemToUpdate.originalPrice && itemToUpdate.originalPrice > parsedValue) {
+          logOldValue = itemToUpdate.originalPrice;
+      }
       recordedEventId = await recordChangeLogEntry({
           itemId: itemToUpdate.id,
           catKey: categoryKey,
@@ -566,7 +570,7 @@ async function processScrapeResult(itemConfig, currentValue, timestamp, currency
           selector: itemToUpdate.selector,
           type: itemToUpdate.type,
           currency: itemToUpdate.currency || '€',
-          oldValue: lastHistoryRecord,
+          oldValue: logOldValue,
           newValue: parsedValue,
           timestamp: checkTime,
           isLowest: isNewLowest,
@@ -580,6 +584,10 @@ async function processScrapeResult(itemConfig, currentValue, timestamp, currency
   // Trigger desktop notification and sound if criteria met
   if ((isNewLowest || isNewPromoAlert) && settings.notificationsEnabled) {
     if (!recordedEventId) {
+        let logOldValue = lastHistoryRecord;
+        if (!hasValueChanged && isNewPromoAlert && itemToUpdate.originalPrice && itemToUpdate.originalPrice > parsedValue) {
+            logOldValue = itemToUpdate.originalPrice;
+        }
         recordedEventId = await recordChangeLogEntry({
             itemId: itemToUpdate.id,
             catKey: categoryKey,
@@ -588,7 +596,7 @@ async function processScrapeResult(itemConfig, currentValue, timestamp, currency
             selector: itemToUpdate.selector,
             type: itemToUpdate.type,
             currency: itemToUpdate.currency || '€',
-            oldValue: lastHistoryRecord,
+            oldValue: logOldValue,
             newValue: parsedValue,
             timestamp: checkTime,
             isLowest: isNewLowest,
@@ -623,9 +631,13 @@ async function recordChangeLogEntry(changeInfo) {
       if (!isNaN(oldNum) && !isNaN(newNum)) {
         diff = Math.round((newNum - oldNum) * 100) / 100;
         percent = oldNum !== 0 ? Math.round(((newNum - oldNum) / oldNum) * 1000) / 10 : 0;
-        changeType = changeInfo.isPromo ? 'promo_drop' : (newNum < oldNum ? 'drop' : 'increase');
+        if (newNum === oldNum) {
+          changeType = changeInfo.isPromo ? 'promo_alert' : 'no_change';
+        } else {
+          changeType = changeInfo.isPromo ? 'promo_drop' : (newNum < oldNum ? 'drop' : 'increase');
+        }
       } else if (changeInfo.isPromo) {
-        changeType = 'promo_drop';
+        changeType = 'promo_alert';
       }
     }
 
@@ -712,9 +724,33 @@ async function showNotification(item, newValue, isPromoAlert = false, eventId = 
   });
 }
 
+// Safe message dispatch helper to prevent unhandled "Receiving end does not exist" promise rejections
+function safeRuntimeSendMessage(message) {
+  try {
+    const promise = chrome.runtime.sendMessage(message, () => {
+      if (chrome.runtime.lastError) {
+        // Suppress expected "Receiving end does not exist" when no tab/page is listening
+      }
+    });
+    if (promise && typeof promise.catch === 'function') {
+      promise.catch(() => {
+        // Suppress unhandled promise rejections in Manifest V3
+      });
+    }
+  } catch (_) {
+    // Suppress synchronous invocation errors
+  }
+}
+
 // Handler for notification clicks (opens options page directly to change history and scrolls to target event)
 async function handleNotificationClick(notificationId) {
   try {
+    if (notificationId) {
+      chrome.notifications.clear(notificationId, () => {
+        if (chrome.runtime.lastError) { /* ignore */ }
+      });
+    }
+
     let targetItemId = null;
     let targetEventId = null;
 
@@ -733,15 +769,13 @@ async function handleNotificationClick(notificationId) {
 
     await chrome.storage.local.set(payload);
 
-    // Notify any already open options tabs
-    try {
-      chrome.runtime.sendMessage({
-        action: 'open_history_and_scroll_to_event',
-        targetTab: 'tab-history-log',
-        eventId: targetEventId,
-        itemId: targetItemId
-      });
-    } catch (_) { }
+    // Notify any already open options tabs (safely ignore error if no options tab is currently listening)
+    safeRuntimeSendMessage({
+      action: 'open_history_and_scroll_to_event',
+      targetTab: 'tab-history-log',
+      eventId: targetEventId,
+      itemId: targetItemId
+    });
 
     chrome.runtime.openOptionsPage();
   } catch (e) {
@@ -755,27 +789,40 @@ if (chrome.notifications.onButtonClicked) {
 }
 
 // 8. AUDIO PLAYBACK (Offscreen Document for Manifest V3)
+let isCreatingOffscreen = null;
 async function playSound() {
-  const offscreenUrl = 'offscreen.html';
-  const existingContexts = await chrome.runtime.getContexts({
-    contextTypes: ['OFFSCREEN_DOCUMENT'],
-    documentUrls: [chrome.runtime.getURL(offscreenUrl)]
-  });
-
-  // If offscreen document exists, send message to play sound
-  if (existingContexts.length > 0) {
-    chrome.runtime.sendMessage({ action: 'play_audio' });
-  } else {
-    // Create new offscreen document
-    await chrome.offscreen.createDocument({
-      url: offscreenUrl,
-      reasons: ['AUDIO_PLAYBACK'],
-      justification: 'Playback of sound notification on price or text change.'
+  try {
+    const offscreenUrl = 'offscreen.html';
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT'],
+      documentUrls: [chrome.runtime.getURL(offscreenUrl)]
     });
-    // Wait briefly for document initialization, then play audio
-    setTimeout(() => {
-        chrome.runtime.sendMessage({ action: 'play_audio' });
-    }, 500);
+
+    // If offscreen document exists, send message to play sound
+    if (existingContexts.length > 0) {
+      safeRuntimeSendMessage({ action: 'play_audio' });
+    } else {
+      // Create new offscreen document (guarded against concurrent creation)
+      if (!isCreatingOffscreen) {
+        isCreatingOffscreen = chrome.offscreen.createDocument({
+          url: offscreenUrl,
+          reasons: ['AUDIO_PLAYBACK'],
+          justification: 'Playback of sound notification on price or text change.'
+        }).catch((err) => {
+          console.warn("Offscreen document creation notice:", err?.message || err);
+        }).finally(() => {
+          isCreatingOffscreen = null;
+        });
+      }
+      await isCreatingOffscreen;
+
+      // Wait briefly for document initialization, then play audio
+      setTimeout(() => {
+        safeRuntimeSendMessage({ action: 'play_audio' });
+      }, 500);
+    }
+  } catch (err) {
+    console.warn("Failed to play notification audio:", err);
   }
 }
 
@@ -1120,10 +1167,19 @@ async function checkOverdueItems() {
         const data = await chrome.storage.local.get('trackingData');
         const trackingData = data.trackingData || {};
         
-        // Auto-heal any corrupted 100x promotions in database on startup
+        // Auto-heal any corrupted 100x promotions and brittle selectors in database on startup
+        let dbModified = false;
         if (sanitizeDatabasePromotions(trackingData)) {
-            await chrome.storage.local.set({ trackingData });
+            dbModified = true;
             console.log('[Startup] Auto-healed corrupted promotion prices in trackingData.');
+        }
+        const optRes = optimizeTrackingSelectors(trackingData);
+        if (optRes.count > 0) {
+            dbModified = true;
+            console.log(`[Startup] Auto-optimized ${optRes.count} tracking selectors.`);
+        }
+        if (dbModified) {
+            await chrome.storage.local.set({ trackingData });
         }
 
         const now = Date.now();
@@ -1174,7 +1230,7 @@ const DOMAIN_OPTIMIZATIONS = [
   { match: (h) => h.includes('amazon.'), cleanSelector: '.a-price .a-offscreen' },
   { match: (h) => h.includes('ozone.bg'), cleanSelector: '.price-box .price, p.special-price .price' },
   { match: (h) => h.includes('babymatters.bg'), cleanSelector: '.product-price-col' },
-  { match: (h) => h.includes('baby.bg'), cleanSelector: '.price-box .special-price .price, .price-box .price' },
+  { match: (h) => h.includes('baby.bg'), cleanSelector: '.price-box .special-price .price, .price-box .regular-price .price' },
   { match: (h) => h.includes('ardes.bg'), cleanSelector: '.common-price .price, .price-total' },
   { match: (h) => h.includes('plasico.bg'), cleanSelector: '.price-buy' },
   { match: (h) => h.includes('jarcomputers.com'), cleanSelector: 'div.row-price' },
@@ -1204,7 +1260,8 @@ function optimizeTrackingSelectors(trackingData) {
       const isBrittle = sel.includes(':nth-of-type') || 
                         sel.includes('#product-options') || 
                         sel === 'div > div.a-section > div.a-section' ||
-                        sel.split('>').length > 4;
+                        sel.split('>').length > 4 ||
+                        (host.includes('baby.bg') && sel.includes('.price-box .price'));
 
       if (isBrittle) {
         const opt = DOMAIN_OPTIMIZATIONS.find(o => o.match(host));

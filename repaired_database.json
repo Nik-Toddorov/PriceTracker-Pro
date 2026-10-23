@@ -836,7 +836,7 @@
         "originalPrice": null,
         "promoBadge": null,
         "requiresMacro": false,
-        "selector": ".price-box .special-price .price, .price-box .price",
+        "selector": ".price-box .special-price .price, .price-box .regular-price .price",
         "type": "price",
         "url": "https://www.baby.bg/product/detska-trotinetka-3-v-1-globber-deluxe-flash-lights-mentova/",
         "useLowestPrice": true
@@ -894,7 +894,7 @@
         "originalPrice": null,
         "promoBadge": null,
         "requiresMacro": false,
-        "selector": ".price-box .special-price .price, .price-box .price",
+        "selector": ".price-box .special-price .price, .price-box .regular-price .price",
         "type": "price",
         "url": "https://www.baby.bg/product/detska-trotinetka-3-v-1-globber-deluxe-flash-lights-sinya/",
         "useLowestPrice": true

@@ -169,7 +169,11 @@ PriceTracker Pro is a powerful browser extension (for Google Chrome, Microsoft E
 - **License**: The project is licensed under the open-source **GNU General Public License v3.0 (GPLv3)**. Added official `LICENSE` file.
 - **Feature / UX**: Automatically closes the settings window (`options.html`) immediately after successfully adding a new site to the tracking list.
 - **Feature / Duplicate Scanner UI**: Added a dedicated section and manual scan button in Settings (`options.html`) to scan the database for duplicate URLs, identical selectors, or overlapping targets, with single deletion and one-click auto-cleaning.
-- **Feature / Duplicate & Overlap Detection**: Added intelligent duplicate prevention on Add and Edit with URL normalization (stripping `utm_*`, `fbclid`, `gclid`, `ref`, and hash anchors). Exact duplicates are blocked with category info; overlapping selectors prompt user confirmation.
+- **Fix / E-Commerce Upsell & Recommendation Carousel Isolation**:
+  - Eliminated the carousel fallback (`fallbackCarouselEl`) in `findTargetElement` (`content.js`), preventing the extractor from falling back to related/upsell carousel items when a specific selector (such as `p.special-price .price`) does not exist on the main product.
+  - Hardened `isUpsellOrCarousel` across `content.js` and `picker.js` to comprehensively identify recommendation containers (`.upsell-products`, `[class*="upsell"]`, `[id*="upsell"]`, `.product-box`, `.products-list`, `.linked-products`), while guaranteeing that primary product purchase containers (`#product_addtocart_form`, `.product-options`, `.right-info`, etc.) are never misclassified.
+  - Strictly anchored Ozone.bg domain rules in `content.js`, `background.js`, and `picker.js` to `#product_addtocart_form`, `.product-options`, and `.right-info`, eliminating bare `.price-box .price` ambiguity.
+  - Added live stock status recognition (`out_of_stock`) for Ozone ("❌ Изчерпан" / `.availability.out-of-stock`) and standard schema fallbacks.
 - **Fix / Price Segmentation & Difference Filtering**: Resolved issues where segmented cents (e.g. `118<sup>,85</sup> €`) were fragmented, and filtered out inline savings/differences (e.g. "Save 39.60 €", "Discount -20%").
 - **Feature / Smart Price Extraction**: Added optional and automated extraction of the lowest price within an element's hierarchy (`useLowestPrice`) to handle promotional discounts.
 - **Feature / UX**: Added **Pick from page** button in the Edit item modal (`editItemModal`) for seamless selector and URL updates on existing trackers.

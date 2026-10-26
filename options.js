@@ -2518,7 +2518,6 @@ async function renderChangeHistoryLog() {
                     </div>
                 `;
             }
-        }
         } else {
             // Text comparison with diff
             comparisonHtml = `

@@ -22,6 +22,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Generates a concise, resilient, and accurate CSS selector for the given element
 function generateUniqueSelector(el) {
     if (!el || el.nodeType !== 1) return "";
+
+    // Domain-specific smart anchoring: Ozone.bg
+    if (typeof window !== 'undefined' && window.location && window.location.hostname.includes('ozone.bg')) {
+        const mainForm = el.closest ? el.closest('#product_addtocart_form, .product-options, .right-info') : null;
+        if (mainForm) {
+            const formPrefix = mainForm.id === 'product_addtocart_form' ? '#product_addtocart_form' : (mainForm.classList.contains('product-options') ? '.product-options' : '.right-info');
+            const sub = el.closest('.special-price') ? '.special-price .price' : (el.closest('.regular-price') ? '.regular-price .price' : '.price-box .price');
+            return `${formPrefix} ${sub}`;
+        }
+    }
     
     // Check if element is inside a recognized eCommerce price container
     const semanticPrice = el.closest ? el.closest('.product-new-price, .special-price, .price-new, .current-price, .a-price, .product-price-col, .price-buy, .row-price, .product-price, .price-box, .price-wrapper, [data-price-type="finalPrice"], sd-price') : null;
@@ -273,6 +283,70 @@ function extractPriceTokensWithCurrency(text) {
     return tokens;
 }
 
+function isOldPriceElement(el) {
+    if (!el) return false;
+    const tag = (el.tagName || '').toLowerCase();
+    if (tag === 'del' || tag === 's' || tag === 'strike') return true;
+
+    const cls = (el.className && typeof el.className === 'string' ? el.className : '').toLowerCase();
+    if (cls.includes('price-through') ||
+        cls.includes('line-through') ||
+        cls.includes('old-price') ||
+        cls.includes('old_price') ||
+        cls.includes('original-price') ||
+        cls.includes('was-price') ||
+        cls.includes('former-price') ||
+        cls.includes('before-discount')) {
+        return true;
+    }
+    try {
+        if (window.getComputedStyle) {
+            const style = window.getComputedStyle(el);
+            if (style && style.textDecorationLine && style.textDecorationLine.includes('line-through')) {
+                return true;
+            }
+        }
+    } catch (e) {}
+    return false;
+}
+const isOldPriceEl = isOldPriceElement;
+
+function isUpsellOrCarousel(el) {
+    if (!el || !el.closest) return false;
+
+    // Positive exclusion: elements inside primary product containers are NEVER upsells
+    if (el.closest('#product_addtocart_form, .product-options, .right-info, .product-page-pricing, .product-highlight, .highlight-box, .main-product-form, .product-info-main, .product-purchase-panel, .product-block--price, #corePriceDisplay_desktop_feature_div, #corePrice_feature_div, #apex_desktop')) {
+        return false;
+    }
+
+    const upsellSelector = [
+        '.upsell',
+        '.upsell-products',
+        '[class*="upsell"]',
+        '.related',
+        '.crosssell',
+        '[class*="cross-sell"]',
+        '[class*="crosssell"]',
+        '[class*="related-"]',
+        '[class*="-related"]',
+        '[class*="slider"]',
+        '[class*="carousel"]',
+        '[class*="recommended"]',
+        '[class*="similar"]',
+        '[class*="viewed"]',
+        '.products-list',
+        '.product-box',
+        '[id*="upsell"]',
+        '[id*="related"]',
+        '[id*="similar"]',
+        '[id*="recommend"]',
+        '.linked-products',
+        '.linked-box'
+    ].join(',');
+
+    return !!((el.matches && el.matches(upsellSelector)) || el.closest(upsellSelector));
+}
+
 /**
  * Intelligently extracts all valid full prices from an element and its subtree/hierarchy.
  * Prioritizes active/promotional price classes, suppresses strikethrough/old prices and MSRPs,
@@ -344,32 +418,7 @@ function extractPricesFromElement(element, useLowestPrice = true) {
                (el.getAttribute && el.getAttribute('itemprop') === 'price');
     };
 
-    const isOldPriceEl = (el) => {
-        if (!el) return false;
-        const cls = (el.className && typeof el.className === 'string' ? el.className : '').toLowerCase();
-        const tag = (el.tagName || '').toLowerCase();
-        if (tag === 'del' || tag === 's' || tag === 'strike') return true;
-        if (cls.includes('price-through') ||
-            cls.includes('line-through') ||
-            cls.includes('old-price') ||
-            cls.includes('old_price') ||
-            cls.includes('regular-price') ||
-            cls.includes('original-price') ||
-            cls.includes('was-price') ||
-            cls.includes('former-price') ||
-            cls.includes('before-discount')) {
-            return true;
-        }
-        try {
-            if (window.getComputedStyle) {
-                const style = window.getComputedStyle(el);
-                if (style && style.textDecorationLine && style.textDecorationLine.includes('line-through')) {
-                    return true;
-                }
-            }
-        } catch (e) {}
-        return false;
-    };
+
 
     const isSavingsOrDifferenceEl = (el) => {
         if (!el) return false;
@@ -628,29 +677,32 @@ const DOMAIN_PRICE_RULES = [
         // Ozone.bg
         match: (host) => host.includes('ozone.bg'),
         priceSelectors: [
-            '.price-box p.special-price .price',
-            'p.special-price .price',
-            '.price-box .regular-price .price',
-            '.price-box span.price',
-            '.price-box .price',
-            'p.special-price',
-            '.price-wrapper .price'
+            '#product_addtocart_form .price-box .price',
+            '#product_addtocart_form p.special-price .price',
+            '#product_addtocart_form .regular-price .price',
+            '.product-options .price-box .price',
+            '.product-options p.special-price .price',
+            '.product-options .regular-price .price',
+            '.right-info .price-box .price',
+            '.right-info p.special-price .price',
+            '.right-info .regular-price .price',
+            '#product_addtocart_form span.price'
         ],
         oldPriceSelectors: [
-            '.price-box p.old-price .price',
-            'p.old-price .price',
-            '.price-box .old-price',
-            'p.old-price del',
-            'p.old-price'
+            '#product_addtocart_form .price-box p.old-price .price',
+            '#product_addtocart_form p.old-price .price',
+            '#product_addtocart_form .price-box .old-price',
+            '.product-options .price-box p.old-price .price',
+            '.right-info .price-box p.old-price .price'
         ],
         promoBadgeSelectors: [
-            '.discount-percentage',
-            '.badge-promo',
-            '.special-price-badge',
-            '.label-sale',
-            '.price-box .badge'
+            '#product_addtocart_form .discount-price',
+            '#product_addtocart_form .discount-percentage',
+            '#product_addtocart_form .price-box .discount-price',
+            '.product-options .discount-price',
+            '.right-info .discount-price'
         ],
-        cleanSelector: '.price-box .price, p.special-price .price'
+        cleanSelector: '#product_addtocart_form .price-box .price, .product-options .price-box .price, .right-info .price-box .price'
     },
     {
         // BabyMatters.bg
@@ -1146,6 +1198,9 @@ function extractPriceAndPromo(element, config = {}, directVoucher = null) {
 
     // 2. Expand search area: prioritize local pricing block first to prevent upsell/related contamination
     const localPriceBlock = (element.closest && element.closest([
+        '#product_addtocart_form',
+        '.product-options',
+        '.right-info',
         '.pricing-block',
         '.product-price-col',
         '.price-box',
@@ -1211,7 +1266,7 @@ function extractPriceAndPromo(element, config = {}, directVoucher = null) {
                 const els = block.querySelectorAll(sel);
                 for (const oldEl of els) {
                     // Ignore elements inside upsell, related, or recommended carousels
-                    if (oldEl.closest && oldEl.closest('.upsell, .related, .crosssell, [class*="upsell"], [class*="slider"], [class*="carousel"], [class*="recommended"]')) {
+                    if (isUpsellOrCarousel(oldEl)) {
                         continue;
                     }
 
@@ -1344,6 +1399,9 @@ function extractPriceAndPromo(element, config = {}, directVoucher = null) {
         try {
             const els = priceBlock.querySelectorAll(sel);
             for (const bEl of els) {
+                if (isUpsellOrCarousel(bEl)) {
+                    continue;
+                }
                 const bText = (bEl.innerText || bEl.textContent || '').replace(/\u00a0/g, ' ').trim();
                 if (!bText) continue;
 
@@ -1462,12 +1520,17 @@ function extractPriceAndPromo(element, config = {}, directVoucher = null) {
     } else if (discountPercent && discountPercent > 0) {
         isPromo = true;
         if (!originalPrice) {
-            discountAmount = +(currentPrice * (discountPercent / 100)).toFixed(2);
-            if (useLowest) {
-                originalPrice = currentPrice;
-                currentPrice = +(currentPrice - discountAmount).toFixed(2);
-            }
+            // Displayed currentPrice is already the active discounted selling price.
+            // Estimate regular/original price from discount percentage without double subtracting.
+            originalPrice = +((currentPrice / (1 - (discountPercent / 100)))).toFixed(2);
+            discountAmount = +(originalPrice - currentPrice).toFixed(2);
         }
+    }
+
+    let stockStatus = 'in_stock';
+    const oosEl = document.querySelector('.availability.out-of-stock, #availability-holder.out-of-stock, .product-page-out-of-stock, .label-out-of-stock, .btn-out-of-stock, .out-of-stock, [class*="out-of-stock"], [class*="outofstock"]');
+    if (oosEl) {
+        stockStatus = 'out_of_stock';
     }
 
     return {
@@ -1478,7 +1541,7 @@ function extractPriceAndPromo(element, config = {}, directVoucher = null) {
         discountAmount: discountAmount,
         isPromo: isPromo,
         promoBadge: promoBadge,
-        stockStatus: 'in_stock'
+        stockStatus: stockStatus
     };
 }
 
@@ -1488,18 +1551,37 @@ function extractPriceAndPromo(element, config = {}, directVoucher = null) {
 function findTargetElement(selector, itemType = 'price') {
     if (!selector) return null;
 
+    const isPrimaryScope = (el) => !!(el && el.closest && el.closest('#product_addtocart_form, .product-options, .right-info, .product-page-pricing, .product-highlight, .highlight-box, .main-product-form, .product-info-main, .product-purchase-panel, .product-block--price, #corePriceDisplay_desktop_feature_div, #corePrice_feature_div, #apex_desktop, form[id*="cart"]'));
+
     // 1. If selector is a comma-separated list, prioritize candidates in listed order,
-    // and for price tracking, ensure we prefer active prices over strikethrough/old prices.
+    // preferring primary product containers, active prices over strikethrough/old prices, and strictly excluding upsell/carousel elements.
     if (selector.includes(',')) {
         const parts = selector.split(',').map(s => s.trim()).filter(Boolean);
         let fallbackOldPriceEl = null;
         for (const part of parts) {
             try {
-                const candidates = document.querySelectorAll(part);
+                const candidates = Array.from(document.querySelectorAll(part));
+                // 1a. Prioritize candidates in primary product container
                 for (const candidate of candidates) {
-                    if (itemType === 'price' && isOldPriceEl(candidate)) {
-                        if (!fallbackOldPriceEl) fallbackOldPriceEl = candidate;
-                        continue;
+                    if (itemType === 'price') {
+                        if (isUpsellOrCarousel(candidate)) continue;
+                        if (isOldPriceElement(candidate)) {
+                            if (!fallbackOldPriceEl) fallbackOldPriceEl = candidate;
+                            continue;
+                        }
+                    }
+                    if (isPrimaryScope(candidate)) {
+                        return candidate;
+                    }
+                }
+                // 1b. Fallback to valid non-upsell candidate
+                for (const candidate of candidates) {
+                    if (itemType === 'price') {
+                        if (isUpsellOrCarousel(candidate)) continue;
+                        if (isOldPriceElement(candidate)) {
+                            if (!fallbackOldPriceEl) fallbackOldPriceEl = candidate;
+                            continue;
+                        }
                     }
                     return candidate;
                 }
@@ -1510,26 +1592,49 @@ function findTargetElement(selector, itemType = 'price') {
 
     // 1b. Direct query selector
     try {
-        const el = document.querySelector(selector);
-        if (el) {
-            if (itemType === 'price' && isOldPriceEl(el)) {
-                // If direct match is an old price, check if a non-old sibling/descendant is available
-                const parentBox = el.closest('.price-box, .product-price-col, .product-info-price, .pricing-block');
-                if (parentBox) {
-                    const activeEl = parentBox.querySelector('.special-price .price, .product-new-price, .regular-price .price, [class*="special-price"] .price');
-                    if (activeEl) return activeEl;
+        const candidates = Array.from(document.querySelectorAll(selector));
+        let fallbackOldPriceEl = null;
+        // Prioritize primary product container
+        for (const el of candidates) {
+            if (itemType === 'price') {
+                if (isUpsellOrCarousel(el)) continue;
+                if (isOldPriceElement(el)) {
+                    const parentBox = el.closest('.price-box, .product-price-col, .product-info-price, .pricing-block, #product_addtocart_form, .product-options');
+                    if (parentBox) {
+                        const activeEl = parentBox.querySelector('.special-price .price, .product-new-price, .regular-price .price, [class*="special-price"] .price');
+                        if (activeEl && !isUpsellOrCarousel(activeEl)) return activeEl;
+                    }
+                    if (!fallbackOldPriceEl) fallbackOldPriceEl = el;
+                    continue;
+                }
+            }
+            if (isPrimaryScope(el)) {
+                return el;
+            }
+        }
+        // Fallback to non-upsell candidate
+        for (const el of candidates) {
+            if (itemType === 'price') {
+                if (isUpsellOrCarousel(el)) continue;
+                if (isOldPriceElement(el)) {
+                    if (!fallbackOldPriceEl) fallbackOldPriceEl = el;
+                    continue;
                 }
             }
             return el;
         }
+        if (fallbackOldPriceEl) return fallbackOldPriceEl;
     } catch (e) {}
 
     // 2. Relaxed child combinator (> replaced by descendant space)
     try {
         if (selector.includes('>')) {
             const descendantSelector = selector.replace(/\s*>\s*/g, ' ');
-            const el = document.querySelector(descendantSelector);
-            if (el) return el;
+            const candidates = document.querySelectorAll(descendantSelector);
+            for (const el of candidates) {
+                if (itemType === 'price' && isUpsellOrCarousel(el)) continue;
+                return el;
+            }
         }
     } catch (e) {}
 
@@ -1541,8 +1646,11 @@ function findTargetElement(selector, itemType = 'price') {
         if (cleanSegments.length > 0) {
             const cleanSelector = cleanSegments.join(' ');
             if (cleanSelector !== selector) {
-                const el = document.querySelector(cleanSelector);
-                if (el) return el;
+                const candidates = document.querySelectorAll(cleanSelector);
+                for (const el of candidates) {
+                    if (itemType === 'price' && isUpsellOrCarousel(el)) continue;
+                    return el;
+                }
             }
         }
     } catch (e) {}
@@ -1551,28 +1659,40 @@ function findTargetElement(selector, itemType = 'price') {
     try {
         if (selector.includes(':nth-of-type')) {
             const withoutNth = selector.replace(/:nth-of-type\(\d+\)/g, '');
-            const el = document.querySelector(withoutNth);
-            if (el) return el;
+            const candidates = document.querySelectorAll(withoutNth);
+            for (const el of candidates) {
+                if (itemType === 'price' && isUpsellOrCarousel(el)) continue;
+                return el;
+            }
         }
 
         const segments = selector.split(/\s*>\s*|\s+/).filter(Boolean);
         if (segments.length > 1) {
             // Try last 2 segments
             const subSelector = segments.slice(-2).join(' ');
-            const el = document.querySelector(subSelector);
-            if (el) return el;
+            const candidates = document.querySelectorAll(subSelector);
+            for (const el of candidates) {
+                if (itemType === 'price' && isUpsellOrCarousel(el)) continue;
+                return el;
+            }
 
             // Try target leaf segment
             const leafSelector = segments[segments.length - 1];
             if (leafSelector && (leafSelector.includes('.') || leafSelector.includes('#'))) {
-                const elLeaf = document.querySelector(leafSelector);
-                if (elLeaf) return elLeaf;
+                const leafCandidates = document.querySelectorAll(leafSelector);
+                for (const elLeaf of leafCandidates) {
+                    if (itemType === 'price' && isUpsellOrCarousel(elLeaf)) continue;
+                    return elLeaf;
+                }
 
                 // Try leaf class without element tag prefix (e.g. div.pricing-block -> .pricing-block)
                 const classOnly = leafSelector.match(/\.[\w-]+/);
                 if (classOnly) {
-                    const elClassOnly = document.querySelector(classOnly[0]);
-                    if (elClassOnly) return elClassOnly;
+                    const classCandidates = document.querySelectorAll(classOnly[0]);
+                    for (const elClassOnly of classCandidates) {
+                        if (itemType === 'price' && isUpsellOrCarousel(elClassOnly)) continue;
+                        return elClassOnly;
+                    }
                 }
             }
         }

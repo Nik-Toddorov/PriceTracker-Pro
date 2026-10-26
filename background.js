@@ -1228,7 +1228,7 @@ async function checkOverdueItems() {
 const DOMAIN_OPTIMIZATIONS = [
   { match: (h) => h.includes('emag.'), cleanSelector: 'p.product-new-price' },
   { match: (h) => h.includes('amazon.'), cleanSelector: '.a-price .a-offscreen' },
-  { match: (h) => h.includes('ozone.bg'), cleanSelector: '.price-box .price, p.special-price .price' },
+  { match: (h) => h.includes('ozone.bg'), cleanSelector: '#product_addtocart_form .price-box .price, .product-options .price-box .price, .right-info .price-box .price' },
   { match: (h) => h.includes('babymatters.bg'), cleanSelector: '.product-price-col' },
   { match: (h) => h.includes('baby.bg'), cleanSelector: '.price-box .special-price .price, .price-box .regular-price .price' },
   { match: (h) => h.includes('ardes.bg'), cleanSelector: '.common-price .price, .price-total' },

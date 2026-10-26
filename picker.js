@@ -246,6 +246,16 @@ if (!window.priceTrackerPickerInjected) {
 
     function getCssSelector(el) {
         if (!(el instanceof Element)) return "";
+
+        // Domain-specific smart anchoring: Ozone.bg
+        if (typeof window !== 'undefined' && window.location && window.location.hostname.includes('ozone.bg')) {
+            const mainForm = el.closest ? el.closest('#product_addtocart_form, .product-options, .right-info') : null;
+            if (mainForm) {
+                const formPrefix = mainForm.id === 'product_addtocart_form' ? '#product_addtocart_form' : (mainForm.classList.contains('product-options') ? '.product-options' : '.right-info');
+                const sub = el.closest('.special-price') ? '.special-price .price' : (el.closest('.regular-price') ? '.regular-price .price' : '.price-box .price');
+                return `${formPrefix} ${sub}`;
+            }
+        }
         
         // Check if element is inside a recognized eCommerce price container
         const semanticPrice = el.closest ? el.closest('.product-new-price, .special-price, .price-new, .current-price, .a-price, .product-price-col, .price-buy, .row-price, .product-price, .price-box, .price-wrapper, [data-price-type="finalPrice"], sd-price') : null;
@@ -501,7 +511,6 @@ if (!window.priceTrackerPickerInjected) {
                 cls.includes('line-through') ||
                 cls.includes('old-price') ||
                 cls.includes('old_price') ||
-                cls.includes('regular-price') ||
                 cls.includes('original-price') ||
                 cls.includes('was-price') ||
                 cls.includes('former-price') ||
@@ -740,7 +749,7 @@ if (!window.priceTrackerPickerInjected) {
                 if (originalPrice) break;
                 const oldEls = container.querySelectorAll(oldSelectors);
                 for (const oldEl of oldEls) {
-                    if (oldEl.closest && oldEl.closest('.upsell, .related, .crosssell, [class*="upsell"], [class*="slider"], [class*="carousel"], [class*="recommended"]')) {
+                    if (oldEl.closest && oldEl.closest('.upsell, .upsell-products, [class*="upsell"], .related, .crosssell, [class*="cross-sell"], [class*="crosssell"], [class*="slider"], [class*="carousel"], [class*="recommended"], [class*="similar"], [class*="viewed"], .products-list, .product-box, [id*="upsell"], [id*="related"], [id*="similar"]')) {
                         continue;
                     }
                     const subPrice = oldEl.querySelector('.price, span.price, del, s, strike');
@@ -865,6 +874,9 @@ if (!window.priceTrackerPickerInjected) {
             ].join(','));
 
             for (const b of badgeEls) {
+                if (b.closest && b.closest('.upsell, .upsell-products, [class*="upsell"], .related, .crosssell, [class*="cross-sell"], [class*="crosssell"], [class*="slider"], [class*="carousel"], [class*="recommended"], [class*="similar"], [class*="viewed"], .products-list, .product-box, [id*="upsell"], [id*="related"], [id*="similar"]')) {
+                    continue;
+                }
                 const bText = (b.innerText || b.textContent || '').replace(/\u00a0/g, ' ').trim();
                 if (!bText) continue;
                 const pctMatch = bText.match(/[-–]?\s*(\d{1,2}(?:[.,]\d)?)\s*%/);
@@ -910,7 +922,6 @@ if (!window.priceTrackerPickerInjected) {
                     discountPercent = Math.round((voucherDiscountAmount / originalPrice) * 100);
                 }
             }
-        }
 
         // Fallback: eMAG script data if on eMAG
         if (!originalPrice || !discountPercent) {
